@@ -1,0 +1,81 @@
+# -- Replica count for the deployment
+replicaCount: 1
+
+# -- Container image configuration
+image:
+  repository: ""
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# -- Network service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+# -- Ingress configuration
+ingress:
+  enabled: false
+  className: "nginx"
+  # Optional: manually specify hosts. If omitted, defaults to {{ .Release.Name }}.jerrytech.me
+  hosts: []
+  
+  # TLS configuration
+  tls: []
+
+# -- Resource limits and requests
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# -- Liveness and Readiness probes
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 30
+  readiness:
+    path: /health
+    initialDelaySeconds: 5
+
+# -- ConfigMap data (optional)
+configMap:
+  enabled: false
+  data: {}
+
+# -- Secret configuration (預設開啟應用程式私有 Secret)
+secret:
+  enabled: true
+
+# -- Environment variables and secrets
+env: []
+envFrom: []
+
+# -- Default Container Security Context (Strict)
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# -- Security Exception (RD override)
+securityException:
+  enabled: false
+  # When enabled, you can provide overrides here
+  # context:
+  #   runAsNonRoot: false
+  #   runAsUser: 0
+  #   readOnlyRootFilesystem: false
+
+# -- Additional Pod configuration
+podAnnotations: {}
+podLabels: {}

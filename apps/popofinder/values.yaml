@@ -1,0 +1,25 @@
+# popofinder-values.yaml
+# 使用方式: helm upgrade --install popofinder ./helm-chart -f popofinder-values.yaml -n popo
+
+customSelectorLabels:
+  app: "popofinder"
+
+image:
+  repository: dfgh012316/popofinder
+  tag: v2.0.2
+
+ingress:
+  enabled: true
+
+configMap:
+  enabled: true
+  data:
+    ENVIRONMENT: "production"
+    DB_NAME: "popo"
+    DB_USER: "postgres"
+
+env:
+  - name: PYTHONDONTWRITEBYTECODE
+    value: "1"
+  - name: PYTHONUNBUFFERED
+    value: "1"

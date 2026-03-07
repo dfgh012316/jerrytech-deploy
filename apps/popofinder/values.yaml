@@ -5,8 +5,8 @@ customSelectorLabels:
   app: "popofinder"
 
 image:
-  repository: dfgh012316/popofinder
-  tag: v2.0.2
+  repository: "dfgh012316/popofinder"
+  tag: "v2.0.2"
 
 ingress:
   enabled: true

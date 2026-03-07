@@ -1,0 +1,20 @@
+global:
+  domain: argocd.jerrytech.me
+
+configs:
+  params:
+    server.insecure: true
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hostname: argocd.jerrytech.me
+    tls: true
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-wildcard
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+
+dex:
+  enabled: false

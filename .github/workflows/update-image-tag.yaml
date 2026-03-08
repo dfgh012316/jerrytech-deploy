@@ -1,0 +1,87 @@
+name: Update Image Tag
+
+on:
+  repository_dispatch:
+    types:
+      - update-image-tag
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate source repository
+        run: |
+          ALLOWED_REPOS=("dfgh012316/popofinder")
+          SOURCE_REPO="${{ github.event.client_payload.repo }}"
+
+          for repo in "${ALLOWED_REPOS[@]}"; do
+            if [ "$repo" == "$SOURCE_REPO" ]; then
+              echo "✅ Source repository $SOURCE_REPO is allowed"
+              exit 0
+            fi
+          done
+
+          echo "❌ Source repository $SOURCE_REPO is not in the whitelist"
+          exit 1
+
+      - name: Validate image exists on DockerHub
+        env:
+          APP: ${{ github.event.client_payload.app }}
+          TAG: ${{ github.event.client_payload.tag }}
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://hub.docker.com/v2/repositories/dfgh012316/${APP}/tags/${TAG}/")
+
+          if [ "$HTTP_STATUS" == "200" ]; then
+            echo "✅ Image dfgh012316/${APP}:${TAG} exists on DockerHub"
+          else
+            echo "❌ Image dfgh012316/${APP}:${TAG} not found on DockerHub (HTTP ${HTTP_STATUS})"
+            exit 1
+          fi
+
+  update:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout jerrytech-deploy
+        uses: actions/checkout@v3
+
+      - name: Update image tag
+        env:
+          APP: ${{ github.event.client_payload.app }}
+          TAG: ${{ github.event.client_payload.tag }}
+        run: |
+          sed -i "s/^  tag: .*/  tag: \"${TAG}\"/" apps/${APP}/values.yaml
+
+      - name: Commit and push
+        env:
+          APP: ${{ github.event.client_payload.app }}
+          TAG: ${{ github.event.client_payload.tag }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          PR_URL: ${{ github.event.client_payload.pr_url }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/${APP}/values.yaml
+          git commit -m "chore(${APP}): update image tag to ${TAG}
+
+          Triggered by PR #${PR_NUMBER}
+          ${PR_URL}"
+          git push
+
+      - name: Job Summary
+        if: always()
+        env:
+          APP: ${{ github.event.client_payload.app }}
+          TAG: ${{ github.event.client_payload.tag }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          PR_URL: ${{ github.event.client_payload.pr_url }}
+          REPO: ${{ github.event.client_payload.repo }}
+        run: |
+          echo "### Update Image Tag Summary 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "| 項目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| App | ${APP} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Tag | \`${TAG}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Source Repo | ${REPO} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | [PR #${PR_NUMBER}](${PR_URL}) |" >> $GITHUB_STEP_SUMMARY

@@ -45,8 +45,6 @@ jobs:
     steps:
       - name: Checkout jerrytech-deploy
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITOPS_TOKEN }}
 
       - name: Update image tag
         env:
@@ -61,6 +59,8 @@ jobs:
           TAG: ${{ github.event.client_payload.tag }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
           PR_URL: ${{ github.event.client_payload.pr_url }}
+        with:
+          token: ${{ secrets.GITOPS_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

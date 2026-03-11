@@ -6,7 +6,7 @@ customSelectorLabels:
 
 image:
   repository: "dfgh012316/popofinder"
-  tag: "2fcef56"
+  tag: "8ccefeb"
 
 ingress:
   enabled: true

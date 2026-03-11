@@ -1,6 +1,3 @@
-# popofinder-values.yaml
-# 使用方式: helm upgrade --install popofinder ./helm-chart -f popofinder-values.yaml -n popo
-
 customSelectorLabels:
   app: "popofinder"
 
@@ -17,9 +14,3 @@ configMap:
     ENVIRONMENT: "production"
     DB_NAME: "popo"
     DB_USER: "postgres"
-
-env:
-  - name: PYTHONDONTWRITEBYTECODE
-    value: "1"
-  - name: PYTHONUNBUFFERED
-    value: "1"

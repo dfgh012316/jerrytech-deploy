@@ -1,9 +1,15 @@
 name: Update Image Tag
 
 on:
-  repository_dispatch:
-    types:
-      - update-image-tag
+  workflow_call:
+    inputs:
+      app:
+        required: false
+        type: string
+        default: ''
+      tag:
+        required: true
+        type: string
 
 jobs:
   validate:
@@ -12,7 +18,7 @@ jobs:
       - name: Validate source repository
         run: |
           ALLOWED_REPOS=("dfgh012316/popofinder")
-          SOURCE_REPO="${{ github.event.client_payload.repo }}"
+          SOURCE_REPO="${{ github.event.repository.full_name }}"
 
           for repo in "${ALLOWED_REPOS[@]}"; do
             if [ "$repo" == "$SOURCE_REPO" ]; then
@@ -24,18 +30,27 @@ jobs:
           echo "❌ Source repository $SOURCE_REPO is not in the whitelist"
           exit 1
 
-      - name: Validate image exists on DockerHub
-        env:
-          APP: ${{ github.event.client_payload.app }}
-          TAG: ${{ github.event.client_payload.tag }}
+      - name: Resolve app name
+        id: resolve
         run: |
+          if [ -n "${{ inputs.app }}" ]; then
+            APP="${{ inputs.app }}"
+          else
+            APP="${{ github.event.repository.full_name }}"
+            APP="${APP##*/}"
+          fi
+          echo "app=$APP" >> $GITHUB_OUTPUT
+
+      - name: Validate image exists on DockerHub
+        run: |
+          APP="${{ steps.resolve.outputs.app }}"
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://hub.docker.com/v2/repositories/dfgh012316/${APP}/tags/${TAG}/")
+            "https://hub.docker.com/v2/repositories/dfgh012316/${APP}/tags/${{ inputs.tag }}/")
 
           if [ "$HTTP_STATUS" == "200" ]; then
-            echo "✅ Image dfgh012316/${APP}:${TAG} exists on DockerHub"
+            echo "✅ Image dfgh012316/${APP}:${{ inputs.tag }} exists on DockerHub"
           else
-            echo "❌ Image dfgh012316/${APP}:${TAG} not found on DockerHub (HTTP ${HTTP_STATUS})"
+            echo "❌ Image dfgh012316/${APP}:${{ inputs.tag }} not found on DockerHub (HTTP ${HTTP_STATUS})"
             exit 1
           fi
 
@@ -43,47 +58,50 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve app name
+        id: resolve
+        run: |
+          if [ -n "${{ inputs.app }}" ]; then
+            APP="${{ inputs.app }}"
+          else
+            APP="${{ github.event.repository.full_name }}"
+            APP="${APP##*/}"
+          fi
+          echo "app=$APP" >> $GITHUB_OUTPUT
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: dfgh012316
+          repositories: jerrytech-deploy
+
       - name: Checkout jerrytech-deploy
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITOPS_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
+          repository: dfgh012316/jerrytech-deploy
 
       - name: Update image tag
-        env:
-          APP: ${{ github.event.client_payload.app }}
-          TAG: ${{ github.event.client_payload.tag }}
         run: |
-          sed -i "s/^  tag: .*/  tag: \"${TAG}\"/" apps/${APP}/values.yaml
+          yq e '.image.tag = "${{ inputs.tag }}"' -i apps/${{ steps.resolve.outputs.app }}/values.yaml
 
       - name: Commit and push
-        env:
-          APP: ${{ github.event.client_payload.app }}
-          TAG: ${{ github.event.client_payload.tag }}
-          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
-          PR_URL: ${{ github.event.client_payload.pr_url }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add apps/${APP}/values.yaml
-          git commit -m "chore(${APP}): update image tag to ${TAG}
-
-          Triggered by PR #${PR_NUMBER}
-          ${PR_URL}"
+          git add apps/${{ steps.resolve.outputs.app }}/values.yaml
+          git commit -m "chore(${{ steps.resolve.outputs.app }}): update image tag to ${{ inputs.tag }}"
           git push
 
       - name: Job Summary
         if: always()
-        env:
-          APP: ${{ github.event.client_payload.app }}
-          TAG: ${{ github.event.client_payload.tag }}
-          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
-          PR_URL: ${{ github.event.client_payload.pr_url }}
-          REPO: ${{ github.event.client_payload.repo }}
         run: |
           echo "### Update Image Tag Summary 🚀" >> $GITHUB_STEP_SUMMARY
           echo "| 項目 | 值 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
-          echo "| App | ${APP} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Image Tag | \`${TAG}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Source Repo | ${REPO} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Triggered by | [PR #${PR_NUMBER}](${PR_URL}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| App | ${{ steps.resolve.outputs.app }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Tag | \`${{ inputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Source Repo | ${{ github.event.repository.full_name }} |" >> $GITHUB_STEP_SUMMARY

@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Validate source repository
         run: |
-          ALLOWED_REPOS=("jerrytech-me/popofinder")
+          ALLOWED_REPOS=("dfgh012316/popofinder")
           SOURCE_REPO="${{ github.event.repository.full_name }}"
 
           for repo in "${ALLOWED_REPOS[@]}"; do
@@ -75,14 +75,14 @@ jobs:
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: jerrytech-me
+          owner: dfgh012316
           repositories: jerrytech-deploy
 
       - name: Checkout jerrytech-deploy
         uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
-          repository: jerrytech-me/jerrytech-deploy
+          repository: dfgh012316/jerrytech-deploy
 
       - name: Update image tag
         run: |

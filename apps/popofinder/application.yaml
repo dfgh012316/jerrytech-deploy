@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/jerrytech-me/jerrytech-deploy
+    repoURL: https://github.com/dfgh012316/jerrytech-deploy
     targetRevision: HEAD
     path: charts/app
     helm:

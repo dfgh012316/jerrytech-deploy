@@ -4,7 +4,7 @@ image:
   repository: "dfgh012316/popofinder"
   tag: "c7f445f"
 ingress:
-  enabled: true
+  enabled: false
 configMap:
   enabled: true
   data:

@@ -100,7 +100,7 @@ jobs:
         if: always()
         run: |
           echo "### Update Image Tag Summary 🚀" >> $GITHUB_STEP_SUMMARY
-          echo "| 項目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| App | ${{ steps.resolve.outputs.app }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Image Tag | \`${{ inputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY

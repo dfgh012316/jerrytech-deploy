@@ -51,7 +51,7 @@ configMap:
   enabled: false
   data: {}
 
-# -- Secret configuration (預設開啟應用程式私有 Secret)
+# -- Secret configuration (enabled by default for app-specific secrets)
 secret:
   enabled: true
 

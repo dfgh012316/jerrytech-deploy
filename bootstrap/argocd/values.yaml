@@ -3,6 +3,9 @@ global:
 
 configs:
   params:
+    # TLS termination is handled by Cloudflare Tunnel at the edge.
+    # Traffic from the tunnel to ArgoCD runs within the cluster over plain HTTP,
+    # so insecure mode is intentional here — not a misconfiguration.
     server.insecure: true
 
 server:

@@ -37,7 +37,7 @@ spec:
           {{- end }}
           securityContext:
             {{- toYaml $securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: "{{ required "image.repository is required" .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
@@ -78,11 +78,7 @@ spec:
             - name: tmp
               mountPath: /tmp
           {{- end }}
-      {{- if (and .Values.securityContext.readOnlyRootFilesystem (not .Values.securityException.enabled)) }}
-      volumes:
-        - name: tmp
-          emptyDir: {}
-      {{- else if (and .Values.securityException.enabled (index .Values.securityException.context "readOnlyRootFilesystem" | default .Values.securityContext.readOnlyRootFilesystem)) }}
+      {{- if $securityContext.readOnlyRootFilesystem }}
       volumes:
         - name: tmp
           emptyDir: {}

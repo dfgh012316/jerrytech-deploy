@@ -21,10 +21,11 @@ service:
 ingress:
   enabled: false
   className: "nginx"
-  # Optional: manually specify hosts. If omitted, defaults to {{ .Release.Name }}.jerrytech.me
+  # Required when enabled and hosts is not set
+  host: ""
+  # Optional: manually specify multiple hosts with custom paths
   hosts: []
-  
-  # TLS configuration
+  # Optional: custom TLS configuration, defaults to jerrytech-wildcard-tls
   tls: []
 
 # -- Resource limits and requests

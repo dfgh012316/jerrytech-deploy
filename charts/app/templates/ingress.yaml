@@ -48,7 +48,7 @@ spec:
           {{- end }}
     {{- end }}
     {{- else }}
-    - host: {{ .Values.ingress.host | default "popo.jerrytech.me" }}
+    - host: {{ required "ingress.host is required when ingress is enabled" .Values.ingress.host }}
       http:
         paths:
           - path: /

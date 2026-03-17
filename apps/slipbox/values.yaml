@@ -1,13 +1,10 @@
 customSelectorLabels:
   app: "slipbox"
-
 image:
   repository: "dfgh012316/slipbox"
-  tag: "0b5a2e3"
-
+  tag: "20c738f"
 ingress:
   enabled: false
-
 resources:
   limits:
     cpu: 500m
@@ -15,7 +12,6 @@ resources:
   requests:
     cpu: 100m
     memory: 256Mi
-
 probes:
   liveness:
     path: /health
@@ -23,13 +19,10 @@ probes:
   readiness:
     path: /health
     initialDelaySeconds: 10
-
 configMap:
   enabled: false
-
 secret:
   enabled: true
-
 securityException:
   enabled: true
   context:

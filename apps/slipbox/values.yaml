@@ -3,7 +3,7 @@ customSelectorLabels:
 
 image:
   repository: "dfgh012316/slipbox"
-  tag: "latest"
+  tag: "f184cfd"
 
 ingress:
   enabled: false

@@ -20,7 +20,10 @@ probes:
     path: /health
     initialDelaySeconds: 10
 configMap:
-  enabled: false
+  enabled: true
+  data:
+    REDIRECT_URI: "https://slipbox.jerrytech.me/api/auth/google/callback"
+    FRONTEND_URL: ""
 secret:
   enabled: true
 securityException:

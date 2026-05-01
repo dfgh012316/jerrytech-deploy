@@ -1,16 +1,12 @@
 customSelectorLabels:
   app: "papiin"
-
 image:
   repository: "dfgh012316/papiin"
-  tag: "latest"
-
+  tag: "14fd8c7"
 service:
   targetPort: 8080
-
 ingress:
   enabled: false
-
 resources:
   limits:
     cpu: 200m
@@ -18,7 +14,6 @@ resources:
   requests:
     cpu: 50m
     memory: 64Mi
-
 probes:
   liveness:
     path: /health
@@ -26,6 +21,5 @@ probes:
   readiness:
     path: /health
     initialDelaySeconds: 5
-
 secret:
   enabled: false

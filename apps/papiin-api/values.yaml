@@ -1,0 +1,25 @@
+customSelectorLabels:
+  app: "papiin-api"
+image:
+  repository: "dfgh012316/papiin-api"
+  tag: "latest"
+service:
+  targetPort: 8080
+ingress:
+  enabled: false
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+probes:
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 10
+  readiness:
+    path: /healthz
+    initialDelaySeconds: 5
+secret:
+  enabled: false

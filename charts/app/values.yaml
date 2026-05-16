@@ -77,6 +77,10 @@ securityException:
   #   runAsUser: 0
   #   readOnlyRootFilesystem: false
 
+# -- DB Migration via init container (runs migrate up before app starts)
+migrations:
+  enabled: false
+
 # -- Additional Pod configuration
 podAnnotations: {}
 podLabels: {}

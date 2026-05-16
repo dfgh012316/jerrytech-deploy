@@ -22,4 +22,6 @@ probes:
     path: /healthz
     initialDelaySeconds: 5
 secret:
-  enabled: false
+  enabled: true
+migrations:
+  enabled: true

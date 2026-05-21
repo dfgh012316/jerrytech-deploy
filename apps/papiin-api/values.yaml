@@ -23,5 +23,15 @@ probes:
     initialDelaySeconds: 5
 secret:
   enabled: true
+configMap:
+  enabled: true
+  data:
+    CORS_ALLOWED_ORIGINS: "https://papiin.jerrytech.me,https://papiin-dashboard.jerrytech.me"
+    SESSION_COOKIE_DOMAIN: ".jerrytech.me"
+    # Temporary: lets the frontend bypass PaPiin SSO via /api/v1/auth/dev-login
+    # while PaPiin's JWT exchange is unavailable. Flip to "false" before treating
+    # this deployment as production. See docs/integration/dev-login-for-frontend.md
+    # in the papiin repo.
+    DEV_LOGIN_ENABLED: "true"
 migrations:
   enabled: true

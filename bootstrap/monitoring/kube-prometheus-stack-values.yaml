@@ -1,0 +1,55 @@
+grafana:
+  enabled: true
+  admin:
+    existingSecret: grafana-admin-credentials
+    userKey: admin-user
+    passwordKey: admin-password
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-wildcard
+    hosts:
+      - grafana.jerrytech.me
+    path: /
+    tls:
+      - hosts:
+          - "*.jerrytech.me"
+        secretName: jerrytech-wildcard-tls
+  service:
+    type: ClusterIP
+    port: 80
+  persistence:
+    enabled: true
+    initChownData: false
+    type: statefulset
+    storageClassName: "local-path"
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
+    finalizers:
+      - kubernetes.io/pvc-protection
+
+prometheus:
+  prometheusSpec:
+    retention: "7d"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true

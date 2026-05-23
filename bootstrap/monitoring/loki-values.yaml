@@ -1,0 +1,85 @@
+deploymentMode: SingleBinary
+
+loki:
+  image:
+    tag: "3.5.1-arm64"
+  schemaConfig:
+    configs:
+      - from: "2025-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  commonConfig:
+    replication_factor: 1
+    path_prefix: /var/loki
+  structuredConfig:
+    auth_enabled: false
+    limits_config:
+      retention_period: 730d
+      reject_old_samples: true
+      reject_old_samples_max_age: 7d
+      retention_stream:
+        - selector: '{namespace=~".+"}'
+          period: 730d
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 7d
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+  storage:
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+    storageClassName: ""
+  singleBinary:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+singleBinary:
+  replicas: 1
+
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+ingester:
+  replicas: 0
+querier:
+  replicas: 0
+queryFrontend:
+  replicas: 0
+queryScheduler:
+  replicas: 0
+distributor:
+  replicas: 0
+compactor:
+  replicas: 0
+indexGateway:
+  replicas: 0
+bloomCompactor:
+  replicas: 0
+bloomGateway:
+  replicas: 0
+
+chunksCache:
+  enabled: false
+
+promtail:
+  enabled: false

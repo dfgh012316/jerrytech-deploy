@@ -1,0 +1,38 @@
+image:
+  tag: "3.1.1-arm64"
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+config:
+  clients:
+    - url: http://monitoring-loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+  snippets:
+    pipelineStages:
+      - cri: {}
+      - drop:
+          source: content
+          expression: '.*GET /health HTTP/1\.1.*'
+          drop_counter_reason: "dropped_health_check"
+  scrape_configs:
+    - job_name: kubernetes-pods
+      kubernetes_sd_configs:
+        - role: pod
+      relabel_configs:
+        - action: keep
+          regex: .+
+          source_labels: [__meta_kubernetes_namespace]
+        - action: replace
+          source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - action: replace
+          source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - action: replace
+          source_labels: [__meta_kubernetes_pod_container_name]
+          target_label: container
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)

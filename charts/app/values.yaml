@@ -55,7 +55,13 @@ configMap:
 secret:
   enabled: true
 
-# -- Environment variables and secrets
+# -- Deployment environment label (exposed to the container as ENV).
+# Override per-app (e.g. "production", "staging") when the default isn't appropriate.
+environment: "dev"
+
+# -- Environment variables and secrets.
+# APP_VERSION (= image.tag) and ENV (= .Values.environment) are injected by the
+# chart automatically; entries listed here override them by name.
 env: []
 envFrom: []
 

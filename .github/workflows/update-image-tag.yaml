@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Validate source repository
         run: |
-          ALLOWED_REPOS=("dfgh012316/popofinder" "dfgh012316/slipbox" "dfgh012316/papiin")
+          ALLOWED_REPOS=("dfgh012316/popofinder" "dfgh012316/papiin-dashboard")
           SOURCE_REPO="${{ github.event.repository.full_name }}"
 
           for repo in "${ALLOWED_REPOS[@]}"; do

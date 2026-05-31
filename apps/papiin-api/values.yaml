@@ -33,5 +33,10 @@ configMap:
     # this deployment as production. See docs/integration/dev-login-for-frontend.md
     # in the papiin repo.
     DEV_LOGIN_ENABLED: "true"
+    # Serves Swagger UI at /docs from the openapi.yaml baked into the image.
+    # Defaults to on in ENV=dev; the API refuses to boot if this is "true" in a
+    # production-like ENV. Set OPENAPI_SPEC_PATH to where the Dockerfile copied
+    # the spec.
+    OPENAPI_SPEC_PATH: "/openapi.yaml"
 migrations:
   enabled: true

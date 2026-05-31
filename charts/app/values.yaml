@@ -1,6 +1,9 @@
 # -- Replica count for the deployment
 replicaCount: 1
 
+# -- Number of old ReplicaSets to retain for rollback (Kubernetes default: 10)
+revisionHistoryLimit: 3
+
 # -- Container image configuration
 image:
   repository: ""

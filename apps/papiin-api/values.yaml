@@ -2,7 +2,7 @@ customSelectorLabels:
   app: "papiin-api"
 image:
   repository: "dfgh012316/papiin-api"
-  tag: "c760d7d"
+  tag: "ec21b8d"
 service:
   targetPort: 8080
 ingress:

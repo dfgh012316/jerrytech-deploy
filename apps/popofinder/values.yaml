@@ -22,3 +22,10 @@ configMap:
     ENVIRONMENT: "production"
     DB_NAME: "popo"
     DB_USER: "postgres"
+cronjob:
+  enabled: true
+  name: "reconcile"
+  # 每月 1 號 04:00 UTC (≈ 台北 12:00) 重爬 blog 對帳回填來源、補新通報
+  schedule: "0 4 1 * *"
+  command:
+    - /reconcile

@@ -90,6 +90,18 @@ securityException:
 migrations:
   enabled: false
 
+# -- Optional CronJob (e.g. periodic data reconcile). Disabled by default.
+# Reuses the app image, securityContext and envFrom (configMaps + secret).
+cronjob:
+  enabled: false
+  # Suffix appended to the fullname for the CronJob/container name.
+  name: "job"
+  # Cron schedule (cluster default timezone = UTC). Required when enabled.
+  schedule: ""
+  # Container command (e.g. ["/reconcile"]).
+  command: []
+  backoffLimit: 1
+
 # -- Additional Pod configuration
 podAnnotations: {}
 podLabels: {}

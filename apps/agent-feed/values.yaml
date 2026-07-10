@@ -1,0 +1,29 @@
+image:
+  repository: "dfgh012316/agent-feed"
+  tag: "8d48681"  # 之後由 agent-feed repo 的 CI 透過 update-image-tag workflow 更新
+environment: "production"
+ingress:
+  enabled: false  # 對外走 Cloudflare Tunnel: feed.jerrytech.me -> agent-feed.agent-feed.svc:80
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+probes:
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 10
+  readiness:
+    path: /healthz
+    initialDelaySeconds: 5
+secret:
+  enabled: true  # 手動建立，含 DATABASE_URL 與 PUBLISH_TOKEN；名稱必須是 agent-feed
+configMap:
+  enabled: true
+  data:
+    # RSS 與 publish API 回傳的絕對 URL 一律由此組成（tunnel 後面不信 Host header）
+    BASE_URL: "https://feed.jerrytech.me"
+migrations:
+  enabled: true

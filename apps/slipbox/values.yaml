@@ -1,7 +1,9 @@
+imagePullSecrets:
+  - name: ghcr-pull
 customSelectorLabels:
   app: "slipbox"
 image:
-  repository: "dfgh012316/slipbox"
+  repository: "ghcr.io/dfgh012316/slipbox"
   tag: "f37d13b"
 ingress:
   enabled: false

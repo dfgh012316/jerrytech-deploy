@@ -1,6 +1,6 @@
 image:
   repository: "dfgh012316/agent-feed"
-  tag: ""  # 由 agent-feed repo 的 CI 透過 update-image-tag workflow 填入
+  tag: "8d48681"  # 之後由 agent-feed repo 的 CI 透過 update-image-tag workflow 更新
 environment: "production"
 ingress:
   enabled: false  # 對外走 Cloudflare Tunnel: feed.jerrytech.me -> agent-feed.agent-feed.svc:80

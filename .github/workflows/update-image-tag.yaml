@@ -10,6 +10,12 @@ on:
       tag:
         required: true
         type: string
+      # image 所在 registry：docker.io（預設，向後相容）或 ghcr.io。
+      # ghcr.io 需要 caller job 授予 packages: read（驗證用 caller 的 GITHUB_TOKEN）。
+      registry:
+        required: false
+        type: string
+        default: 'docker.io'
 
 jobs:
   validate:
@@ -41,16 +47,33 @@ jobs:
           fi
           echo "app=$APP" >> $GITHUB_OUTPUT
 
-      - name: Validate image exists on DockerHub
+      - name: Validate image exists on registry
         run: |
           APP="${{ steps.resolve.outputs.app }}"
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://hub.docker.com/v2/repositories/dfgh012316/${APP}/tags/${{ inputs.tag }}/")
+          TAG="${{ inputs.tag }}"
+
+          case "${{ inputs.registry }}" in
+            ghcr.io)
+              # private package：先用 caller 的 GITHUB_TOKEN 換 registry token，再查 manifest
+              TOKEN=$(curl -s -u "x:${{ github.token }}" \
+                "https://ghcr.io/token?scope=repository:dfgh012316/${APP}:pull" | jq -r .token)
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json" \
+                "https://ghcr.io/v2/dfgh012316/${APP}/manifests/${TAG}")
+              IMAGE="ghcr.io/dfgh012316/${APP}:${TAG}"
+              ;;
+            *)
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                "https://hub.docker.com/v2/repositories/dfgh012316/${APP}/tags/${TAG}/")
+              IMAGE="dfgh012316/${APP}:${TAG}"
+              ;;
+          esac
 
           if [ "$HTTP_STATUS" == "200" ]; then
-            echo "✅ Image dfgh012316/${APP}:${{ inputs.tag }} exists on DockerHub"
+            echo "✅ Image ${IMAGE} exists"
           else
-            echo "❌ Image dfgh012316/${APP}:${{ inputs.tag }} not found on DockerHub (HTTP ${HTTP_STATUS})"
+            echo "❌ Image ${IMAGE} not found (HTTP ${HTTP_STATUS})"
             exit 1
           fi
 

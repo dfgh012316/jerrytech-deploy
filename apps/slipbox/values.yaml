@@ -19,6 +19,7 @@ probes:
   readiness:
     path: /health
     initialDelaySeconds: 10
+environment: "prod"
 configMap:
   enabled: true
   data:
@@ -26,7 +27,5 @@ configMap:
     FRONTEND_URL: ""
 secret:
   enabled: true
-securityException:
+migrations:
   enabled: true
-  context:
-    readOnlyRootFilesystem: false

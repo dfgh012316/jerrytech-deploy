@@ -1,0 +1,32 @@
+customSelectorLabels:
+  app: "slipbox"
+image:
+  repository: "dfgh012316/slipbox"
+  tag: "579668a"
+ingress:
+  enabled: false
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 30
+  readiness:
+    path: /health
+    initialDelaySeconds: 10
+configMap:
+  enabled: true
+  data:
+    REDIRECT_URI: "https://slipbox.jerrytech.me/api/auth/google/callback"
+    FRONTEND_URL: ""
+secret:
+  enabled: true
+securityException:
+  enabled: true
+  context:
+    readOnlyRootFilesystem: false

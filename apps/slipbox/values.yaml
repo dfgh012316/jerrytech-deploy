@@ -4,7 +4,7 @@ customSelectorLabels:
   app: "slipbox"
 image:
   repository: "ghcr.io/dfgh012316/slipbox"
-  tag: "1cb6e54"
+  tag: "7f47079"
 ingress:
   enabled: false
 resources:

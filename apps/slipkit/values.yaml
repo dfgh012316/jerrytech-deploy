@@ -1,10 +1,10 @@
 imagePullSecrets:
   - name: ghcr-pull
 customSelectorLabels:
-  app: "slipbox"
+  app: "slipkit"
 image:
-  repository: "ghcr.io/dfgh012316/slipbox"
-  tag: "fdcd3bc"
+  repository: "ghcr.io/dfgh012316/slipkit"
+  tag: "1a94b84"
 ingress:
   enabled: false
 resources:
@@ -25,7 +25,7 @@ environment: "prod"
 configMap:
   enabled: true
   data:
-    REDIRECT_URI: "https://slipbox.jerrytech.me/api/auth/google/callback"
+    REDIRECT_URI: "https://slipkit.jerrytech.me/api/auth/google/callback"
     FRONTEND_URL: ""
 secret:
   enabled: true

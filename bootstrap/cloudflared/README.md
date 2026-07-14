@@ -10,7 +10,6 @@ Routes external traffic to in-cluster services via Cloudflare Tunnel (Zero Trust
 | `popo.jerrytech.me` | `http://popofinder.popo.svc:80` |
 | `papiin-api.jerrytech.me` | `http://papiin-api.papiin-api.svc:80` |
 | `ssh.jerrytech.me` | `ssh://192.168.1.188:22` |
-| `feed.jerrytech.me` | `http://agent-feed.agent-feed.svc:80` |
 | `slipkit.jerrytech.me` | `http://slipkit.slipkit.svc:80` |
 
 Public hostname rules are configured in Cloudflare Zero Trust dashboard, not in this repo.

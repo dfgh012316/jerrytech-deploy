@@ -14,7 +14,7 @@ Apply once into every new app namespace:
 kubectl apply -f common-config.yaml -n <app-namespace>
 ```
 
-Existing namespaces (already deployed): `papiin-api`, `popo`, `agent-feed`, `slipkit`.
+Existing namespaces (already deployed): `papiin-api`, `popo`, `slipkit`.
 
 ## Keys
 

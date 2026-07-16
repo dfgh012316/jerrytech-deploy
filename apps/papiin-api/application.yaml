@@ -3,6 +3,10 @@ kind: Application
 metadata:
   name: papiin-api
   namespace: argocd
+  # Ensures root prune of this Application cascades to managed workloads
+  # (Deployment/Service/ConfigMap/etc.) instead of leaving orphans.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:

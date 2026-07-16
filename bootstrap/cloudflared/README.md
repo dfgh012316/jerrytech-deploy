@@ -8,7 +8,6 @@ Routes external traffic to in-cluster services via Cloudflare Tunnel (Zero Trust
 |----------|---------|
 | `argocd.jerrytech.me` | `http://argocd-server.argocd.svc:80` |
 | `popo.jerrytech.me` | `http://popofinder.popo.svc:80` |
-| `papiin-api.jerrytech.me` | `http://papiin-api.papiin-api.svc:80` |
 | `ssh.jerrytech.me` | `ssh://192.168.1.188:22` |
 | `slipkit.jerrytech.me` | `http://slipkit.slipkit.svc:80` |
 

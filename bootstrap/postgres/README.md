@@ -1,6 +1,6 @@
 # Postgres
 
-Single-replica Postgres StatefulSet shared by in-cluster apps (e.g. `papiin-api`).
+Single-replica Postgres StatefulSet shared by in-cluster apps.
 Not managed by ArgoCD — apply manually once per cluster.
 
 ## Deploy

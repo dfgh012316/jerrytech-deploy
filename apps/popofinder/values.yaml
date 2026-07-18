@@ -21,7 +21,7 @@ configMap:
   data:
     ENVIRONMENT: "production"
     DB_NAME: "popo"
-    DB_USER: "postgres"
+    DB_USER: "popo_app"
 cronjob:
   enabled: true
   name: "reconcile"

@@ -40,14 +40,27 @@ resources:
     cpu: 100m
     memory: 128Mi
 
-# -- Liveness and Readiness probes
+# -- Startup / Liveness / Readiness probes.
+# liveness 打靜態 /health（永不查相依）；readiness 與 startup 打 /readyz（查 DB）。
+# startup 通過前 liveness 不啟動，故 liveness initialDelaySeconds 設 0。
 probes:
+  startup:
+    path: /readyz
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 30
   liveness:
     path: /health
-    initialDelaySeconds: 30
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
   readiness:
-    path: /health
-    initialDelaySeconds: 5
+    path: /readyz
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
 
 # -- ConfigMap data (optional)
 configMap:

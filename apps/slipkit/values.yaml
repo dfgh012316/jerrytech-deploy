@@ -14,13 +14,6 @@ resources:
   requests:
     cpu: 100m
     memory: 256Mi
-probes:
-  liveness:
-    path: /health
-    initialDelaySeconds: 30
-  readiness:
-    path: /health
-    initialDelaySeconds: 10
 environment: "prod"
 configMap:
   enabled: true

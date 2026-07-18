@@ -1,0 +1,10 @@
+# app → namespace / helm release name 對照。
+# 取代 Argo application.yaml 裡的 destination.namespace / metadata.name。
+# release name 必須沿用既有值，才是 in-place 接管而非重裝（見 migration doc §0）。
+apps:
+  popofinder:
+    namespace: popo
+    releaseName: popofinder
+  slipkit:
+    namespace: slipkit
+    releaseName: slipkit

@@ -1,0 +1,89 @@
+name: Deploy app
+
+# push-based 部署入口。兩種觸發：
+#   1) repository_dispatch (type: deploy-app) — app repo build 完 image 後發來（帶 app/tag）
+#   2) workflow_dispatch — 手動重部署 / 接管現有 release（可只 deploy 不改 tag）
+#
+# job1 commit-tag：在 GitHub-hosted 上 bump apps/<app>/values.yaml 的 image.tag（內建 GITHUB_TOKEN）
+# job2 deploy    ：在 in-cluster self-hosted runner 上 helm upgrade（讀剛 push 的 commit）
+on:
+  repository_dispatch:
+    types: [deploy-app]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'app 名（popofinder / slipkit）'
+        required: true
+        type: string
+      tag:
+        description: 'image tag（留空則不改 tag，只重跑 helm 接管現有 values）'
+        required: false
+        type: string
+
+jobs:
+  commit-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      app: ${{ steps.r.outputs.app }}
+      sha: ${{ steps.push.outputs.sha }}
+    steps:
+      - name: Resolve inputs（dispatch / manual 兩種來源）
+        id: r
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "app=${{ github.event.client_payload.app }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ github.event.client_payload.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=${{ inputs.app }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate app allowlist
+        run: |
+          case "${{ steps.r.outputs.app }}" in
+            popofinder|slipkit) : ;;
+            *) echo "::error::app '${{ steps.r.outputs.app }}' 不在 allowlist"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v5
+
+      - name: Bump image tag（有給 tag 才改）
+        if: ${{ steps.r.outputs.tag != '' }}
+        run: |
+          yq e -i '.image.tag = "${{ steps.r.outputs.tag }}"' "apps/${{ steps.r.outputs.app }}/values.yaml"
+
+      - name: Commit & push
+        id: push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "values 無變更（tag 相同或未給），沿用現有 commit"
+          else
+            git add "apps/${{ steps.r.outputs.app }}/values.yaml"
+            git commit -m "chore(${{ steps.r.outputs.app }}): update image tag to ${{ steps.r.outputs.tag }}"
+            git push
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: commit-tag
+    runs-on: [self-hosted, pi, k3s]
+    steps:
+      - name: Checkout（含剛 push 的 tag commit）
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.commit-tag.outputs.sha }}
+
+      - name: Helm upgrade
+        run: |
+          chmod +x scripts/deploy-app.sh
+          ./scripts/deploy-app.sh "${{ needs.commit-tag.outputs.app }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Deploy ${{ needs.commit-tag.outputs.app }} 🚀" >> "$GITHUB_STEP_SUMMARY"
+          echo "- commit: \`${{ needs.commit-tag.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"

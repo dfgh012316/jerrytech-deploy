@@ -1,0 +1,45 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "actions-runner.name" . }}
+  labels:
+    {{- include "actions-runner.labels" . | nindent 4 }}
+rules:
+  # 建立/查詢 namespace（helm --create-namespace / deploy-app.sh）
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list, watch, create]
+  # helm 部署 charts/app 產出的 core 資源 + helm release secret
+  - apiGroups: [""]
+    resources: [services, configmaps, secrets, serviceaccounts, persistentvolumeclaims, pods]
+    verbs: ["*"]
+  - apiGroups: ["apps"]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: ["*"]
+  - apiGroups: ["batch"]
+    resources: [jobs, cronjobs]
+    verbs: ["*"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses]
+    verbs: ["*"]
+  # helm --wait / 排查需要讀 pod 狀態與 log、events
+  - apiGroups: [""]
+    resources: [pods/log, events]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "actions-runner.name" . }}
+  labels:
+    {{- include "actions-runner.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "actions-runner.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "actions-runner.name" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end -}}

@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "actions-runner.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "actions-runner.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # 單一 runner，避免兩個同名 pod 搶註冊 → 先停舊再起新
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "actions-runner.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "actions-runner.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "actions-runner.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # SIGTERM 後 entrypoint 要向 GitHub 反註冊，給足時間
+      terminationGracePeriodSeconds: 90
+      containers:
+        - name: runner
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: REPO_OWNER
+              value: {{ .Values.runner.repoOwner | quote }}
+            - name: REPO_NAME
+              value: {{ .Values.runner.repoName | quote }}
+            - name: RUNNER_NAME
+              value: {{ .Values.runner.name | quote }}
+            - name: RUNNER_LABELS
+              value: {{ .Values.runner.labels | quote }}
+            - name: ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runner.patSecret.name }}
+                  key: {{ .Values.runner.patSecret.key }}
+          volumeMounts:
+            - name: work
+              mountPath: /home/runner/_work
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: work
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

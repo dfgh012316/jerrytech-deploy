@@ -1,0 +1,38 @@
+image:
+  repository: ghcr.io/dfgh012316/jerrytech-runner
+  tag: latest
+  pullPolicy: Always
+
+runner:
+  repoOwner: dfgh012316
+  repoName: jerrytech-deploy
+  # 固定 runner 名 + entrypoint 的 --replace：pod 重建時取代舊註冊，不留殭屍
+  name: jerrytech-pi-runner
+  labels: "self-hosted,linux,arm64,pi,k3s"
+  # PAT 放 out-of-band 建立的 secret（值不進 git，慣例同其他 secret）
+  patSecret:
+    name: runner-pat
+    key: ACCESS_TOKEN
+
+serviceAccount:
+  # 空字串則用 chart name
+  name: actions-runner
+
+rbac:
+  # 建立 ClusterRole/Binding，授權 runner 對 k3s 做 helm deploy
+  create: true
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# runner image 設 public 時留空；若設 private 則放 [{name: ghcr-pull}]
+imagePullSecrets: []
+
+nodeSelector: {}
+tolerations: []

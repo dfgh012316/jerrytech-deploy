@@ -32,7 +32,7 @@ Sized for a single Raspberry Pi node.
    when redeploying, either disable the ingress and add a Cloudflare Tunnel
    public hostname → `grafana.monitoring.svc:80`, or reintroduce cert-manager.
 
-3. **Manual install for now** (no ArgoCD Application yet):
+3. **Manual install for now** (not automated):
 
    ```sh
    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -50,6 +50,6 @@ Sized for a single Raspberry Pi node.
      -n monitoring -f promtail-values.yaml
    ```
 
-   When this becomes a permanent part of the cluster, convert each into an
-   ArgoCD `Application` under `apps/` pointing at the upstream chart with
-   `helm.valueFiles` referencing these files.
+   When this becomes a permanent part of the cluster, wire it into the deploy
+   pipeline — e.g. a dedicated `workflow_dispatch` target that runs these
+   `helm upgrade --install` commands on the in-cluster runner.

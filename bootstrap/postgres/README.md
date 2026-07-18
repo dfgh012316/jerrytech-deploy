@@ -1,7 +1,7 @@
 # Postgres
 
 Single-replica Postgres StatefulSet shared by in-cluster apps.
-Not managed by ArgoCD — apply manually once per cluster.
+Not part of the deploy pipeline — apply manually once per cluster.
 
 ## Deploy
 

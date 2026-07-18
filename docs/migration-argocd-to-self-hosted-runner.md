@@ -1,5 +1,24 @@
 # Migration Plan: ArgoCD → Self-Hosted Runner
 
+> ## ✅ 已於 2026-07-18 執行完成
+>
+> 實際採用的架構與下方原計畫有幾處關鍵差異（原計畫內容保留作為記錄）：
+>
+> | 項目 | 原計畫 | 實際採用 |
+> |------|--------|---------|
+> | Runner 位置 | host systemd runner（§3 方案 A） | **in-cluster runner Deployment**：自寫 helm chart `bootstrap/actions-runner/`（image 官方 runner 疊 helm/kubectl/yq + PAT 自動註冊）|
+> | Caller → deploy | reusable workflow `uses:`（§4.1） | **`repository_dispatch`**：個人帳號的 repo-level runner 只對「本 repo 觸發的 run」可見，reusable workflow 的 self-hosted job 會 pending，故改用 dispatch 讓 deploy 成為 jerrytech-deploy 自己的 run |
+> | deploy commit 用的 token | GitHub App | 內建 `GITHUB_TOKEN`（deploy 跑在本 repo context，`contents: write` 即可，不需 PAT/App）|
+> | 接管既有資源 | 未預期 | dry-run 發現 slipkit configmap、popofinder cronjob 缺 `meta.helm.sh` ownership → 新增 `scripts/adopt-helm-ownership.sh` 補 annotation 再 `helm upgrade --install` in-place 接管 |
+>
+> **最終資產**：`bootstrap/actions-runner/`（runner image + chart）、`apps/_registry.yaml`、`scripts/deploy-app.sh`、`scripts/adopt-helm-ownership.sh`、`.github/workflows/{deploy-app,build-runner-image}.yaml`。runner 認證用 PAT（k8s secret `runner-pat` @ ns `actions-runner`）、image 用複製自 slipkit ns 的 `ghcr-pull` 拉。
+>
+> **結果**：slipkit（rev3+）、popofinder（rev4+）皆 helm 接管且全程零中斷；caller 三支/一支 workflow 改發 dispatch 並各跑通一輪；Argo 已 `helm uninstall` + 刪 ns + 清 argoproj CRD。
+>
+> **唯一待辦**：Cloudflare Zero Trust 刪 `argocd.jerrytech.me` public hostname。
+
+---
+
 把部署控制面從 **ArgoCD（pull-based GitOps）** 換成 **GitHub Actions self-hosted runner + Helm（push-based）**。
 
 目標：個人 lab 上路徑更短、除錯更直覺，同時保留 `jerrytech-deploy` 當唯一部署設定來源。

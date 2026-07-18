@@ -1,0 +1,34 @@
+name: Runner selftest
+
+# 驗證 in-cluster self-hosted runner：能跑 job、工具齊、in-cluster SA 有部署權限。
+# Phase 1b 驗收用；之後可保留當健康檢查。
+on:
+  workflow_dispatch:
+
+jobs:
+  selftest:
+    runs-on: [self-hosted, pi, k3s]
+    steps:
+      - name: Tool versions
+        run: |
+          set -x
+          helm version --short
+          kubectl version --client
+          yq --version
+
+      - name: In-cluster kubectl
+        run: |
+          set -euxo pipefail
+          kubectl get ns
+
+      - name: In-cluster helm
+        run: |
+          set -euxo pipefail
+          helm list -A
+
+      - name: RBAC — 可否部署 app
+        run: |
+          set -euxo pipefail
+          kubectl auth can-i create deployments -n slipkit
+          kubectl auth can-i create namespaces
+          kubectl auth can-i create secrets -n popo

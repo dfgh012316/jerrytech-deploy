@@ -1,53 +1,73 @@
 # jerrytech-deploy
 
-GitOps deployment repository for [jerrytech.me](https://jerrytech.me), managed by ArgoCD running on a Raspberry Pi Kubernetes cluster.
+Deployment repository for [jerrytech.me](https://jerrytech.me): a single-node k3s cluster on a Raspberry Pi, deployed **push-based** via an **in-cluster GitHub Actions self-hosted runner** + Helm.
+
+> Previously ArgoCD (pull-based GitOps); migrated to a self-hosted runner (push-based) in 2026-07. See `docs/migration-argocd-to-self-hosted-runner.md`.
 
 ## Architecture
 
 ```
-GitHub (source repo)
-  └─ CI: build & push Docker image
-       └─ triggers reusable workflow (update-image-tag)
-            └─ commits new image tag → this repo
-                 └─ ArgoCD detects diff → syncs cluster
+app repo push
+  └─ CI: build & push image (GitHub-hosted)
+       └─ repository_dispatch → this repo's "Deploy app" workflow
+            ├─ job 1 (GitHub-hosted): bump apps/<app>/values.yaml image tag
+            └─ job 2 (in-cluster self-hosted runner): helm upgrade --install
 ```
 
-External traffic is routed through **Cloudflare Tunnel** (Zero Trust), eliminating the need for an exposed LoadBalancer or Ingress controller.
+External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no LoadBalancer or Ingress controller.
 
 ## Repository Structure
 
 ```
 .
-├── apps/                    # Per-app Helm value overrides + ArgoCD Application CRDs
-│   └── popofinder/
-├── bootstrap/               # One-time cluster bootstrap manifests
-│   ├── argocd/              # ArgoCD Helm values
-│   └── cloudflared/         # Cloudflare Tunnel deployment
-├── charts/
-│   └── app/                 # Generic reusable Helm chart for all services
+├── apps/
+│   ├── _registry.yaml            # app → namespace / release name map
+│   ├── popofinder/values.yaml
+│   └── slipkit/values.yaml
+├── bootstrap/                    # cluster infra, applied manually (each has a README)
+│   ├── actions-runner/           # in-cluster runner: image/ + chart/
+│   ├── cloudflared/
+│   ├── common-config/
+│   └── postgres/
+├── charts/app/                   # generic Helm chart for all services
+├── scripts/
+│   ├── deploy-app.sh             # helm upgrade wrapper (shared by local & CI)
+│   └── adopt-helm-ownership.sh   # one-off: adopt existing resources into a release
 └── .github/workflows/
-    └── update-image-tag.yaml  # Reusable workflow called by app repos
+    ├── deploy-app.yaml           # repository_dispatch + workflow_dispatch → deploy
+    └── build-runner-image.yaml   # build the arm64 runner image → GHCR
 ```
 
 ## CI/CD Flow
 
-1. App repo pushes code → GitHub Actions builds and pushes a Docker image tagged with the commit SHA
-2. App CI calls the reusable `update-image-tag` workflow defined in this repo
-3. The workflow validates the caller repo against an allowlist, verifies the image exists on DockerHub, then commits the new tag to `apps/<app>/values.yaml` using a **GitHub App token** (no PAT)
-4. ArgoCD detects the change and syncs the cluster automatically (auto-sync + self-heal enabled)
+1. App repo (popofinder/slipkit) CI builds & pushes an image tagged with the commit SHA.
+2. CI generates a **GitHub App token** and sends a `repository_dispatch` (type `deploy-app`, payload `{app, tag}`) to this repo.
+3. `deploy-app.yaml`:
+   - **commit-tag** (GitHub-hosted): validate against the allowlist → bump `apps/<app>/values.yaml` image tag with the built-in `GITHUB_TOKEN` → commit & push.
+   - **deploy** (in-cluster self-hosted runner): checkout that commit → `deploy-app.sh <app>` → `helm upgrade --install`.
+4. Rollback = revert `values.yaml` and re-run deploy (or `helm rollback`).
 
 ## Key Design Decisions
 
 | Decision | Reason |
 |----------|--------|
-| ArgoCD `server.insecure: true` | TLS is terminated at the Cloudflare edge; traffic inside the cluster runs over plain HTTP intentionally |
-| GitHub App token instead of PAT | Scoped to this repo only, not tied to a personal account |
-| Cloudflare Tunnel instead of Ingress | No public IP required on the cluster; Zero Trust handles access control |
-| Generic Helm chart (`charts/app`) | Single chart for all services; per-app differences live in `apps/<app>/values.yaml` |
-| App of Apps pattern | Single ArgoCD root application manages all child applications automatically |
+| In-cluster self-hosted runner (custom chart) | Managed by Helm like everything else; returns with the cluster on Pi re-flash; no operator → short, debuggable path |
+| `repository_dispatch` (not a reusable workflow) | A repo-level runner on a personal account is only visible to runs triggered *by this repo*; dispatch makes the deploy a run of *this* repo |
+| Deploy commits with the built-in `GITHUB_TOKEN` | The deploy workflow runs in this repo's context — no PAT/App token needed |
+| Cloudflare Tunnel instead of Ingress | No public IP on the cluster; Zero Trust handles access control |
+| Generic Helm chart (`charts/app`) | One chart for all services; per-app diffs live in `apps/<app>/values.yaml` |
+| Secrets via manual `kubectl create secret` | Never committed to git |
 
 ## Bootstrap
 
-See per-component READMEs:
-- [ArgoCD](bootstrap/argocd/)
+Applied manually (see per-component READMEs):
+- [actions-runner](bootstrap/actions-runner/README.md) — in-cluster self-hosted runner
 - [Cloudflare Tunnel](bootstrap/cloudflared/README.md)
+- [common-config](bootstrap/common-config/README.md)
+- [postgres](bootstrap/postgres/README.md)
+
+## Day-2 Operations
+
+- **Release**: app repo push → fully automatic.
+- **Manual redeploy**: Actions → *Deploy app* → `workflow_dispatch` (app + tag).
+- **Config-only change**: edit `apps/<app>/values.yaml`, then ssh to the Pi and run `scripts/deploy-app.sh <app>`, or use `workflow_dispatch`.

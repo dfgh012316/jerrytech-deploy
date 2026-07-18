@@ -2,7 +2,7 @@ customSelectorLabels:
   app: "popofinder"
 image:
   repository: "dfgh012316/popofinder"
-  tag: "6d0c914"
+  tag: "93e7077"
 ingress:
   enabled: false
 resources:

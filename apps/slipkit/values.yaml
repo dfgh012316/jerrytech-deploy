@@ -4,7 +4,7 @@ customSelectorLabels:
   app: "slipkit"
 image:
   repository: "ghcr.io/dfgh012316/slipkit"
-  tag: "9b19705"
+  tag: "0a2e2f8"
 ingress:
   enabled: false
 resources:

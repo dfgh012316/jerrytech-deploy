@@ -1,14 +1,16 @@
+# Values are validated against values.schema.json: unknown top-level keys are rejected.
+
 # -- Replica count for the deployment
 replicaCount: 1
 
 # -- Number of old ReplicaSets to retain for rollback (Kubernetes default: 10)
 revisionHistoryLimit: 3
 
-# -- Container image configuration
+# -- Container image configuration. repository and tag are both required (no
+# fallback): tag is written by CI (deploy-app.yaml) on every deploy.
 image:
   repository: ""
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
 # -- Image pull secrets for private registries
@@ -20,18 +22,7 @@ service:
   port: 80
   targetPort: 8000
 
-# -- Ingress configuration
-ingress:
-  enabled: false
-  className: "nginx"
-  # Required when enabled and hosts is not set
-  host: ""
-  # Optional: manually specify multiple hosts with custom paths
-  hosts: []
-  # Optional: custom TLS configuration, defaults to jerrytech-wildcard-tls
-  tls: []
-
-# -- Resource limits and requests
+# -- Resource limits and requests (also applied to the migrations init container)
 resources:
   limits:
     cpu: 200m
@@ -62,12 +53,17 @@ probes:
     timeoutSeconds: 2
     failureThreshold: 3
 
+# -- Cluster-wide ConfigMap every workload loads via envFrom (DB_HOST / DB_PORT ...).
+# Must already exist in the app namespace (see bootstrap/common-config/). Set "" to skip.
+commonConfigMapName: "common-config"
+
 # -- ConfigMap data (optional)
 configMap:
   enabled: false
   data: {}
 
-# -- Secret configuration (enabled by default for app-specific secrets)
+# -- Load the pre-created Secret named after the release via envFrom.
+# The chart does NOT create the Secret (kubectl create secret ...; never in git).
 secret:
   enabled: true
 
@@ -90,7 +86,7 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 1000
 
-# -- Security Exception (RD override)
+# -- Security Exception (RD override). Applies to the app container only.
 securityException:
   enabled: false
   # When enabled, you can provide overrides here
@@ -99,12 +95,14 @@ securityException:
   #   runAsUser: 0
   #   readOnlyRootFilesystem: false
 
-# -- DB Migration via init container (runs migrate up before app starts)
+# -- DB Migration via init container (runs migrate up before app starts).
+# Contract with the image: /migrate binary + /migrations dir + DATABASE_URL in the release Secret.
+# The init container always uses the baseline securityContext and the app's resources.
 migrations:
   enabled: false
 
 # -- Optional CronJob (e.g. periodic data reconcile). Disabled by default.
-# Reuses the app image, securityContext and envFrom (configMaps + secret).
+# Reuses the app image, securityContext, resources, env and envFrom.
 cronjob:
   enabled: false
   # Suffix appended to the fullname for the CronJob/container name.

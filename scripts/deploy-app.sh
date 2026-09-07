@@ -31,7 +31,7 @@ ARGS=(upgrade --install "$RELEASE" "${ROOT}/charts/app"
 if [ "$MODE" = "--dry-run" ]; then
   ARGS+=(--dry-run --debug)
 else
-  ARGS+=(--wait --timeout 5m)
+  ARGS+=(--wait --timeout 5m --atomic)
 fi
 
 helm "${ARGS[@]}"

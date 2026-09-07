@@ -1,0 +1,54 @@
+name: Chart CI
+
+# chart / values 的 PR 守門：
+#   1) scripts/chart-check.sh — 對 _registry.yaml 每個 app 跑 helm lint + template + kubeconform
+#   2) charts/app 有變動時，Chart.yaml version 必須一併 bump（PaPiin 消費的是 pinned OCI version）
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+      - 'apps/**'
+      - 'scripts/chart-check.sh'
+      - '.github/workflows/chart-ci.yaml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup helm（對齊 runner image 版本）
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Install kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin kubeconform
+
+      - name: Lint / template / kubeconform
+        run: ./scripts/chart-check.sh
+
+      - name: Chart version bumped when chart content changes
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          if git diff --quiet "${BASE}...HEAD" -- charts/app ':!charts/app/Chart.yaml'; then
+            echo "charts/app 內容無變動，不需 bump"; exit 0
+          fi
+          OLD="$(git show "${BASE}:charts/app/Chart.yaml" | yq e '.version' -)"
+          NEW="$(yq e '.version' charts/app/Chart.yaml)"
+          # 本 chart 只接受 MAJOR.MINOR.PATCH（不用 pre-release / build metadata）；
+          # 在這個範圍內 sort -V 的排序等同 SemVer precedence，所以先擋掉範圍外的版號。
+          SEMVER_CORE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          for V in "$OLD" "$NEW"; do
+            [[ "$V" =~ $SEMVER_CORE ]] || { echo "::error::Chart.yaml version '${V}' 不是 MAJOR.MINOR.PATCH"; exit 1; }
+          done
+          # 必須嚴格遞增：相同、倒退、重用舊版號都擋
+          HIGHEST="$(printf '%s\n%s\n' "$OLD" "$NEW" | sort -V | tail -n1)"
+          if [ "$OLD" = "$NEW" ] || [ "$HIGHEST" != "$NEW" ]; then
+            echo "::error::charts/app 有變動，Chart.yaml version 必須高於 base 的 ${OLD}（目前 ${NEW}）"; exit 1
+          fi
+          echo "chart version ${OLD} -> ${NEW}"

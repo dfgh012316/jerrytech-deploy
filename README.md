@@ -32,9 +32,11 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 ├── charts/app/                   # generic Helm chart for all services
 ├── scripts/
 │   ├── deploy-app.sh             # helm upgrade wrapper (shared by local & CI)
+│   ├── chart-check.sh            # helm lint + template + kubeconform for every app (PR CI & local)
 │   └── adopt-helm-ownership.sh   # one-off: adopt existing resources into a release
 └── .github/workflows/
     ├── deploy-app.yaml           # repository_dispatch + workflow_dispatch → deploy
+    ├── chart-ci.yaml             # PR gate: chart-check.sh + Chart.yaml version bump check
     └── build-runner-image.yaml   # build the arm64 runner image → GHCR
 ```
 
@@ -57,6 +59,13 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 | Cloudflare Tunnel instead of Ingress | No public IP on the cluster; Zero Trust handles access control |
 | Generic Helm chart (`charts/app`) | One chart for all services; per-app diffs live in `apps/<app>/values.yaml` |
 | Secrets via manual `kubectl create secret` | Never committed to git |
+
+## Chart (`charts/app`)
+
+- Values are validated by `charts/app/values.schema.json`; unknown keys fail at template time.
+- `image.repository` / `image.tag` are required — no fallback to a chart appVersion.
+- `charts/app` is also consumed by PaPiin as a **pinned OCI version** (`papiin-sre/charts`), so **bump `Chart.yaml` `version` whenever templates change**. `chart-ci.yaml` enforces this on PRs.
+- Local check before pushing: `./scripts/chart-check.sh` (needs helm, mikefarah `yq`, `kubeconform`).
 
 ## Bootstrap
 

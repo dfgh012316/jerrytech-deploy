@@ -12,7 +12,12 @@ CHART="${ROOT}/charts/app"
 K8S_VERSION="${K8S_VERSION:-1.32.6}"   # Pi 上的 k3s 版本
 
 APPS=("$@")
-[ ${#APPS[@]} -gt 0 ] || mapfile -t APPS < <(yq e '.apps | keys | .[]' "$REGISTRY")
+if [ ${#APPS[@]} -eq 0 ]; then
+  # 先接住 yq 輸出再餵 mapfile：`mapfile < <(yq ...)` 不會傳遞 yq 的失敗（set -e 管不到 process substitution）
+  APP_LIST="$(yq e '.apps | keys | .[]' "$REGISTRY")"
+  [ -n "$APP_LIST" ] || { echo "_registry.yaml 裡沒有任何 app"; exit 1; }
+  mapfile -t APPS <<< "$APP_LIST"
+fi
 
 for APP in "${APPS[@]}"; do
   NS="$(yq e ".apps.${APP}.namespace" "$REGISTRY")"

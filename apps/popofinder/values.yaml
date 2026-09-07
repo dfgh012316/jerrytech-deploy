@@ -1,10 +1,6 @@
-customSelectorLabels:
-  app: "popofinder"
 image:
   repository: "dfgh012316/popofinder"
   tag: "d4915ca"
-ingress:
-  enabled: false
 resources:
   limits:
     cpu: 200m

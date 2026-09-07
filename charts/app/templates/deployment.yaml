@@ -26,6 +26,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      automountServiceAccountToken: false
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -33,7 +34,7 @@ spec:
       {{- if .Values.migrations.enabled }}
       initContainers:
         - name: migrate
-          image: "{{ required "image.repository is required" .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "helm-chart.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - /migrate
@@ -47,50 +48,31 @@ spec:
             - secretRef:
                 name: {{ include "helm-chart.fullname" . }}
             {{- end }}
+          {{- /* Always the baseline securityContext: securityException applies to the app container only. */}}
           securityContext:
-            capabilities:
-              drop:
-                - ALL
-            runAsNonRoot: true
-            runAsUser: 1000
-            readOnlyRootFilesystem: true
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
       {{- end }}
       containers:
         - name: {{ .Release.Name }}
           {{- $securityContext := .Values.securityContext }}
           {{- if .Values.securityException.enabled }}
-          {{- $securityContext = merge (.Values.securityException.context | default dict) .Values.securityContext }}
+          {{- /* mergeOverwrite, not merge: sprig merge keeps the baseline where the override is a zero value (runAsUser: 0, runAsNonRoot: false). */}}
+          {{- $securityContext = mergeOverwrite (deepCopy .Values.securityContext) (.Values.securityException.context | default dict) }}
           {{- end }}
           securityContext:
             {{- toYaml $securityContext | nindent 12 }}
-          image: "{{ required "image.repository is required" .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "helm-chart.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
           env:
-            - name: APP_VERSION
-              value: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
-            - name: ENV
-              value: {{ .Values.environment | default "dev" | quote }}
-            {{- with .Values.env }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
+            {{- include "helm-chart.env" . | nindent 12 }}
           envFrom:
-            - configMapRef:
-                name: common-config
-            {{- if .Values.configMap.enabled }}
-            - configMapRef:
-                name: {{ include "helm-chart.fullname" . }}
-            {{- end }}
-            {{- if .Values.secret.enabled }}
-            - secretRef:
-                name: {{ include "helm-chart.fullname" . }}
-            {{- end }}
-            {{- with .Values.envFrom }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
+            {{- include "helm-chart.envFrom" . | nindent 12 }}
           startupProbe:
             httpGet:
               path: {{ .Values.probes.startup.path }}

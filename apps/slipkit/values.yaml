@@ -1,12 +1,8 @@
 imagePullSecrets:
   - name: ghcr-pull
-customSelectorLabels:
-  app: "slipkit"
 image:
   repository: "ghcr.io/dfgh012316/slipkit"
   tag: "v1.0.0"
-ingress:
-  enabled: false
 resources:
   limits:
     cpu: 500m

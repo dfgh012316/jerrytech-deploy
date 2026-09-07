@@ -40,7 +40,9 @@ jobs:
           fi
           OLD="$(git show "${BASE}:charts/app/Chart.yaml" | yq e '.version' -)"
           NEW="$(yq e '.version' charts/app/Chart.yaml)"
-          if [ "$OLD" = "$NEW" ]; then
-            echo "::error::charts/app 有變動但 Chart.yaml version 仍是 ${OLD}，請 bump"; exit 1
+          # 必須嚴格遞增（sort -V 做 SemVer 排序）：相同、倒退、重用舊版號都擋
+          HIGHEST="$(printf '%s\n%s\n' "$OLD" "$NEW" | sort -V | tail -n1)"
+          if [ "$OLD" = "$NEW" ] || [ "$HIGHEST" != "$NEW" ]; then
+            echo "::error::charts/app 有變動，Chart.yaml version 必須高於 base 的 ${OLD}（目前 ${NEW}）"; exit 1
           fi
           echo "chart version ${OLD} -> ${NEW}"

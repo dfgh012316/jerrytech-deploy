@@ -15,7 +15,7 @@ configMap:
   enabled: true
   data:
     REDIRECT_URI: "https://slipkit.jerrytech.me/api/auth/google/callback"
-    FRONTEND_URL: ""
+    FRONTEND_URL: "https://slipkit.jerrytech.me"
 secret:
   enabled: true
 migrations:

@@ -40,7 +40,13 @@ There is no NodePort. For operator access, use `kubectl exec` or an explicit
 - PostgreSQL 18 uses `/var/lib/postgresql/18/docker` for `PGDATA`; mount the PVC
   at `/var/lib/postgresql`, not the pre-18 `/var/lib/postgresql/data` path.
 - `pg-data-postgres-0` uses `local-path` storage. The requested 5Gi is not a
-  reservation of physical disk space; check free space on the Pi separately.
+  reservation of physical disk space or an enforced capacity limit. The installed
+  provisioner's setup script creates a directory without a quota. PG18 used about
+  72MiB after migration, not 5GiB. Changing the request to 1Gi would not reclaim
+  disk space; existing PVCs cannot be shrunk in place. Monitor actual directory
+  usage and free space on the Pi instead. See the
+  [local-path limitations](https://github.com/rancher/local-path-provisioner#cons)
+  and [Kubernetes volume resizing](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#expanding-persistent-volumes-claims).
 - After provisioning, set the bound PV's reclaim policy to `Retain`:
 
   ```sh

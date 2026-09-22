@@ -1,7 +1,7 @@
 # PostgreSQL 15 → 18 and `shared` namespace
 
-Use a new StatefulSet and PVC in `shared`; keep the original `postgres`
-namespace and PVC intact. The manifest in `bootstrap/postgres/postgres.yaml`
+During cutover, use a new StatefulSet and PVC in `shared` and keep the original
+`postgres` namespace and PVC intact. The manifest in `bootstrap/postgres/postgres.yaml`
 creates the destination. Applying it alone does not migrate data or switch apps.
 
 ## Verified outcome (2026-09-23, Asia/Taipei)
@@ -14,8 +14,13 @@ creates the destination. Applying it alone does not migrate data or switch apps.
   ACLs. Both app credentials work and cross-database CONNECT remains denied.
 - Both app deployments became Ready; direct Service `/readyz` checks returned
   `{"checks":{"db":"ok"},"status":"ok"}`. PG18 showed each app's expected role.
-- The old `postgres/postgres` StatefulSet is scaled to zero. Both old and new
-  `pg-data-postgres-0` PVCs remain bound to separate PVs with `Retain` policy.
+- The old StatefulSet and PVC were initially retained after cutover. After a
+  subsequent health check and operator-approved cleanup, the old StatefulSet,
+  PVC, PV and its 71MiB directory were deleted. The old PV's policy was changed
+  to `Delete` so local-path-provisioner removed the directory when the PVC was
+  deleted; directory absence was verified. The `shared` PV remains `Retain`.
+  The old `postgres` namespace's Service and Secret remain; no old DB pod or
+  volume remains.
 - Reconcile scheduling and the Actions runner were restored after validation.
 - Final dumps remain in `~/postgres18-migration/final` on the Pi, with cutover
   configuration snapshots in its protected parent directory. An authorized copy
@@ -86,6 +91,12 @@ the old database. Never run both databases as active writers for the same app.
 Once PG18 accepts production writes, simply switching back loses those writes.
 Stop writers and plan data reconciliation/recovery before any rollback. Keep
 backups and the old PVC even after readiness checks pass.
+
+Retire the old PVC only after an explicit cleanup decision, renewed application
+health checks, and verification of retained backups. For this migration, SHA-256
+hashes of all three final dump files matched between the Pi and the authorized
+workstation archive before cleanup. Deleting only a `Retain` PV object would
+leave its local directory behind; verify the storage directory is actually gone.
 
 ## References
 

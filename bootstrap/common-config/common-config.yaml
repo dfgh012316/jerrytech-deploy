@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: common-config
 data:
-  DB_HOST: "postgres.postgres.svc"
+  DB_HOST: "postgres.shared.svc"
   DB_PORT: "5432"

@@ -20,5 +20,9 @@ Existing namespaces (already deployed): `popo`, `slipkit`.
 
 | Key | Value |
 |-----|-------|
-| `DB_HOST` | `postgres.postgres.svc` |
+| `DB_HOST` | `postgres.shared.svc` |
 | `DB_PORT` | `5432` |
+
+Changing this ConfigMap does not update existing Pod environments. Update any
+`DB_HOST` or `DATABASE_URL` in app Secrets as well (Secret env values override
+this ConfigMap), then restart the app workloads during the migration window.

@@ -5,9 +5,9 @@ FROM ghcr.io/actions/actions-runner:2.335.1
 
 USER root
 
-# 版本對齊：kubectl = k3s v1.32.6；yq = Pi 上既有 v4.53.3；helm 3.16.x 與 Pi 一致
-ARG HELM_VERSION=v3.16.4
-ARG KUBECTL_VERSION=v1.32.6
+# 版本對齊：kubectl = k3s v1.36.4；yq = Pi 上既有 v4.53.3；helm 4.3.x 與 Pi 一致
+ARG HELM_VERSION=v4.3.0
+ARG KUBECTL_VERSION=v1.36.4
 ARG YQ_VERSION=v4.53.3
 ARG TARGETARCH=arm64
 

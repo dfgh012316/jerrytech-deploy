@@ -9,7 +9,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REGISTRY="${ROOT}/apps/_registry.yaml"
 CHART="${ROOT}/charts/app"
-K8S_VERSION="${K8S_VERSION:-1.32.6}"   # Pi 上的 k3s 版本
+K8S_VERSION="${K8S_VERSION:-1.36.4}"   # Pi 上的 k3s 版本
 
 APPS=("$@")
 if [ ${#APPS[@]} -eq 0 ]; then

@@ -1,10 +1,12 @@
 # Runbook：k3s v1.32.6 → v1.36.4（單節點 RPi）
 
+> **2026-09-26 已執行完成**，結果與偏差見文末「執行紀錄」。
+>
 > 這是**手動執行的 runbook**，預定在內網直連 Pi 時一次跑完四次升級。本文的現況都是 2026-09-23 唯讀盤點的結果，執行當天要先跑「步驟 0」，確認現況沒有變。背景事實見 jerry-wiki `repos/jerrytech-deploy.md` 的「k3s 升級前提」與 `concepts/deployment.md` 的「維運存取」。
 
 ## 執行條件
 
-- **只在 Pi 所在的內網執行**，直連 `ssh -i ~/.ssh/pi-backup dfgh012316@192.168.1.188`。不要透過 `ssh.jerrytech.me` 操作，因為它由 k3s 內的 cloudflared pod 承載，k3s 一有狀況就會跟著斷。
+- **只在 Pi 所在的內網執行**，直連 `ssh -i ~/.ssh/pi-backup dfgh012316@192.168.1.188`（2026-09-26 那台工作站沒有 `pi-backup`，用 `~/.ssh/id_ed25519` 登入）。不要透過 `ssh.jerrytech.me` 操作，因為它由 k3s 內的 cloudflared pod 承載，k3s 一有狀況就會跟著斷。
 - 全程在 `screen -S k3s` 裡以 root 執行（先 `sudo -i`；host 沒有 tmux）。斷線後用 `screen -r k3s` 接回。
 - **禁止 `shutdown -h`、`poweroff`、`halt`**：EEPROM 設定 `POWER_OFF_ON_HALT=0`，停機後不會自己開機。本 runbook 不需要 reboot，也不順手做 `apt upgrade`。
 - 升級期間不 push popofinder 與 slipkit 的 main（步驟 1 會把 runner 縮到 0，漏網的 deploy 會在 GitHub 排隊）。
@@ -91,7 +93,7 @@ done
 ```sh
 k3s kubectl -n shared exec postgres-0 -- pg_dumpall -U postgres > $D/pg_dumpall-$(date +%F).sql
 chmod 600 $D/pg_dumpall-*.sql
-tail -2 $D/pg_dumpall-*.sql                  # 預期看到 "PostgreSQL database cluster dump complete"
+grep -c 'PostgreSQL database cluster dump complete' $D/pg_dumpall-*.sql   # 預期 1（檔尾是 "--" 與空行，tail -2 看不到這行）
 ```
 
 這份 dump 含 role 密碼 hash，要當成 secret 看待。
@@ -144,7 +146,7 @@ timeout 300 sh -c 'until k3s kubectl get --raw=/readyz >/dev/null 2>&1; do sleep
 
 備份要在 k3s 停止時做，SQLite 的 `state.db` 與 `-wal`、`-shm` 才會一致。官方 rollback 的前提是要有「在要退回的那個 minor 上」取的 `server/db/` 與 `server/token`（[docs.k3s.io/upgrades/roll-back](https://docs.k3s.io/upgrades/roll-back)），所以每次升級都要各備份一次。
 
-**每次升級後的檢查**：全部通過，而且穩定 10–15 分鐘，restart 次數沒有增加，才做下一次。
+**每次升級後的檢查**：全部通過，而且穩定 5 分鐘，restart 次數沒有增加，才做下一次（單節點、服務少，5 分鐘足夠）。
 
 ```sh
 k3s --version | head -1                                      # 等於 $V
@@ -164,14 +166,14 @@ k3s kubectl -n actions-runner scale deploy actions-runner --replicas=1
 k3s kubectl -n actions-runner rollout status deploy/actions-runner --timeout=300s
 ```
 
-1. 確認 runner 在 GitHub 上是 online：`gh api repos/dfgh012316/jerrytech-deploy/actions/runners --jq '.runners[] | [.name,.status] | @tsv'`。
+1. 確認 runner 在 GitHub 上是 online：`gh api repos/dfgh012316/jerrytech-deploy/actions/runners --jq '.runners[] | [.name,.status] | @tsv'`（需要 repo admin；沒有的話看 runner pod log 有沒有 `Listening for Jobs`）。
 2. 用一次不帶 tag 的部署驗證 pipeline 實際可用。runner 的 Helm 3.16.4 已超出官方支援的 k8s 版本範圍，這一步用來確認它實際上還能用：`gh workflow run deploy-app.yaml -f app=slipkit`。values 沒變，所以不會觸發 rollout。
-3. 從工作站把備份拉到 Pi 以外的地方。內容含 k8s Secrets（在 SQLite 裡是明文）、server token 和 PG globals，必須限制權限：
+3. 從工作站把備份拉到 Pi 以外的地方。內容含 k8s Secrets（在 SQLite 裡是明文）、server token 和 PG globals，必須限制權限，也不要落在 repo 目錄裡：
 
    ```sh
-   umask 077
+   umask 077; mkdir -p ~/Backups/jerrytech-pi
    ssh -i ~/.ssh/pi-backup dfgh012316@192.168.1.188 \
-     "sudo tar -C /root --exclude='k3s-upgrade/v1.*' -czf - k3s-upgrade" > k3s-upgrade-backup-$(date +%F).tar.gz
+     "sudo tar -C /root --exclude='k3s-upgrade/v1.*' -czf - k3s-upgrade" > ~/Backups/jerrytech-pi/k3s-upgrade-backup-$(date +%F).tar.gz
    ```
 
 4. 穩定運行一週後刪掉 `$D/v1.*`（下載的 binary）。`$D/backup` 保留到下次升級。
@@ -201,11 +203,39 @@ systemctl start k3s
 
 ## 後續（升級完成後另開 PR）
 
-- `bootstrap/actions-runner/image/Dockerfile:8-10`：`KUBECTL_VERSION` 改成 `v1.36.x`，`HELM_VERSION` 改成 3.21.x。Helm 官方 skew 表中，3.16.x 只支援 k8s 1.28–1.31，3.21.x 支援 1.33–1.36。改完用 `build-runner-image.yaml` 重 build，再 `helm upgrade` runner chart。
-- `.github/workflows/chart-ci.yaml:25` 的 helm `v3.16.4` 要和 runner 對齊。
-- `scripts/chart-check.sh:12` 的 `K8S_VERSION` 預設值改成 `1.36.4`，改之前先確認 kubeconform 的 schema 已經有這個版本。
-- Pi host 的 `/usr/local/bin/helm` 是 3.16.1，可以選擇一起升級。
-- 同步 jerry-wiki：k3s 版本、traefik 已停用、`config.yaml` 已存在。
+- [x] Pi host 的 `/usr/local/bin/helm` 3.16.1 → **4.3.0**（2026-09-26）。舊 binary 留在 `/root/k3s-upgrade/helm-v3.16.1`；helm-diff 3.10.0 在 Helm 4 下不能用，一併升到 3.15.14（舊版在 `~/helm-plugin-backup/`）。
+- [x] 因為 host 改用 Helm 4，runner 不照原計畫停在 3.21.x，直接對齊 4.3.0：`bootstrap/actions-runner/image/Dockerfile` 的 `HELM_VERSION=v4.3.0`、`KUBECTL_VERSION=v1.36.4`，`chart-ci.yaml` 的 helm 改 `v4.3.0`，`chart-check.sh` 的 `K8S_VERSION` 改 `1.36.4`（kubeconform schema 已有 v1.36.4）。Helm 4.3.x 支援 k8s 1.34–1.37。
+- [ ] runner 拉到新 image 後（`build-runner-image.yaml` 在 merge 時自動跑；image 是 `latest` + `pullPolicy: Always`，要 `rollout restart` 才會換），跑 `runner-selftest.yaml` 與步驟 4.2 的測試部署。
+- [ ] runner 確認是 Helm 4 之後，`scripts/deploy-app.sh` 的 `--atomic` 改 `--rollback-on-failure`、`--dry-run` 改 `--dry-run=client`（Helm 4 只印 deprecation 警告，但 Helm 3 不認得新 flag，所以要等 runner 換完）。
+- [ ] Pi host 的 helmfile 0.171.0 在 Helm 4 下會壞（呼叫已移除的 `helm version --client`），需要 ≥1.2.0；目前看起來沒在用。
+- [ ] 同步 jerry-wiki：k3s 版本、traefik 已停用、`config.yaml` 已存在、host 與 runner 都是 Helm 4。
+
+Helm 4 與既有 release 的相容性：三個 release（slipkit、popofinder、actions-runner）都是 Helm 3 建的，`helm get metadata` 顯示 `APPLY_METHOD: client-side apply (defaulted)`。Helm 4 的 upgrade 會沿用前一個 revision 的 apply method，只有全新 `helm install` 預設用 server-side apply，所以在 host 上不要對既有 app 重新 install，也不要加 `--server-side=true`。
+
+## 執行紀錄（2026-09-26）
+
+四跳全部完成，最終 `v1.36.4+k3s1`，containerd `2.3.4-k3s1.36`。app pod（popofinder、slipkit、postgres-0、cloudflared）全程沒有重啟，兩個 `/readyz` 每次檢查都是 200。
+
+| 時間 | 動作 | 結果 |
+|---|---|---|
+| 01:12 | 步驟 0 | 與 2026-09-23 基準一致 |
+| 01:37 | 步驟 1b–1c | pg_dumpall 362K（popo、postgres、slipbox）；runner 縮到 0 |
+| 01:38 | 步驟 2 停用 traefik | HelmChart、`traefik.yaml`、26 個 traefik/Gateway CRD、`traefik-crd` release 都移除；helm-delete 期間有約 1 分鐘的 `waiting for delete ... requeuing` error |
+| 01:41 | → v1.33.13+k3s2 | containerd 2.2.5；coredns / metrics-server / local-path 換新 pod；啟動時有 `runtime core not ready` 503 與 watch canceled |
+| 01:57 | → v1.34.11+k3s1 | containerd 2.2.7；系統元件再換一次 pod |
+| 02:04 | → v1.35.8+k3s1 | 系統元件 manifest 沒變，沿用原 pod；無 error |
+| 02:11 | → v1.36.4+k3s1 | containerd 2.3.4；無 error |
+| 02:17 | 步驟 4 | runner 放回，`Listening for Jobs`；runner 內 helm 3.16.4 能正常讀 release |
+
+traefik 在之後的每一跳都沒有被裝回來，host 的 80/443 也沒被佔用。升級後根分割區剩 9.9G（備份與下載的 binary 約 760M）。
+
+與上面步驟不同的地方：
+
+- GitHub release 的 CDN 從家裡網路單一連線只有約 50KB/s（Pi 與工作站都一樣，Cloudflare 則有 24MB/s）。改在工作站用 16 條 `curl -r` 分段並行下載（約 800KB/s），驗過 sha256 後 scp 到 Pi。
+- 步驟 2、3 包成 `$D/step2-disable-traefik.sh`、`$D/step3-upgrade.sh <V>`（先驗版本與 checksum、備份目錄已存在就中止、`set -eu`），用 `screen -dmS` 背景執行，log 在 `$D/logs/`。確認過 k3s unit 是 `KillMode=process`。
+- 穩定觀察：v1.33.13 看 12 分鐘，之後每跳 5 分鐘。
+- 步驟 4.2 的測試部署延到 runner 換成 Helm 4 之後一起做。
+- 待辦：2026-10-03 之後刪 `$D/v1.*`。
 
 ## 附錄：2026-09-23 磁碟盤點與 image 清理
 

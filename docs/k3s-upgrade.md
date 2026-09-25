@@ -205,9 +205,10 @@ systemctl start k3s
 
 - [x] Pi host 的 `/usr/local/bin/helm` 3.16.1 → **4.3.0**（2026-09-26）。舊 binary 留在 `/root/k3s-upgrade/helm-v3.16.1`；helm-diff 3.10.0 在 Helm 4 下不能用，一併升到 3.15.14（舊版在 `~/helm-plugin-backup/`）。
 - [x] 因為 host 改用 Helm 4，runner 不照原計畫停在 3.21.x，直接對齊 4.3.0：`bootstrap/actions-runner/image/Dockerfile` 的 `HELM_VERSION=v4.3.0`、`KUBECTL_VERSION=v1.36.4`，`chart-ci.yaml` 的 helm 改 `v4.3.0`，`chart-check.sh` 的 `K8S_VERSION` 改 `1.36.4`（kubeconform schema 已有 v1.36.4）。Helm 4.3.x 支援 k8s 1.34–1.37。
-- [ ] runner 拉到新 image 後（`build-runner-image.yaml` 在 merge 時自動跑；image 是 `latest` + `pullPolicy: Always`，要 `rollout restart` 才會換），跑 `runner-selftest.yaml` 與步驟 4.2 的測試部署。
-  - 2026-09-26：新 image（helm 4.3.0、kubectl 1.36.4）的 selftest 通過，但接著 GitHub 要求 runner 2.335.1 自我更新到 2.337.0，更新在 container 裡失敗，runner 更新期間略過了測試部署的 job（被 cancel，叢集未受影響）。修正：base image 升到 2.337.0 並加 `--disableupdate`（見 `bootstrap/actions-runner/README.md`「runner 版本」）。
-- [ ] runner 確認是 Helm 4 之後，`scripts/deploy-app.sh` 的 `--atomic` 改 `--rollback-on-failure`、`--dry-run` 改 `--dry-run=client`（Helm 4 只印 deprecation 警告，但 Helm 3 不認得新 flag，所以要等 runner 換完）。
+- [x] runner 拉到新 image 後（`build-runner-image.yaml` 在 merge 時自動跑；image 是 `latest` + `pullPolicy: Always`，要 `rollout restart` 才會換），跑 `runner-selftest.yaml` 與步驟 4.2 的測試部署。
+  - 2026-09-26：新 image（helm 4.3.0、kubectl 1.36.4）的 selftest 通過，但接著 GitHub 要求 runner 2.335.1 自我更新到 2.337.0，更新在 container 裡失敗，runner 更新期間略過了測試部署的 job（被 cancel，叢集未受影響）。修正：base image 升到 2.337.0 並加 `--disableupdate`（#11，見 `bootstrap/actions-runner/README.md`「runner 版本」）。
+  - 修正後 runner 2.337.0 連續跑 selftest 與 `deploy-app -f app=slipkit` 都成功：slipkit revision 39、`APPLY_METHOD: client-side apply`，pod 沒有重建。
+- [x] `scripts/deploy-app.sh` 的 `--atomic` 改 `--rollback-on-failure`、`--dry-run` 改 `--dry-run=client`（host 與 runner 都已是 Helm 4）。
 - [ ] Pi host 的 helmfile 0.171.0 在 Helm 4 下會壞（呼叫已移除的 `helm version --client`），需要 ≥1.2.0；目前看起來沒在用。
 - [ ] 同步 jerry-wiki：k3s 版本、traefik 已停用、`config.yaml` 已存在、host 與 runner 都是 Helm 4。
 

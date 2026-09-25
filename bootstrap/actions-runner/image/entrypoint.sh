@@ -39,6 +39,8 @@ if [ -z "${REG_TOKEN}" ] || [ "${REG_TOKEN}" = "null" ]; then
   exit 1
 fi
 
+# --disableupdate：在 container 裡自我更新會失敗（換完 bin 後找不到 Runner.Listener → exit 127
+# → container 重建又回到 image 的舊版），更新期間還會略過 job。版本改由 Dockerfile 的 FROM 管。
 ./config.sh \
   --url "${URL}" \
   --token "${REG_TOKEN}" \
@@ -46,7 +48,8 @@ fi
   --labels "${RUNNER_LABELS}" \
   --work "_work" \
   --unattended \
-  --replace
+  --replace \
+  --disableupdate
 
 # run.sh 放前景；trap 需要它在背景才能攔到訊號，故 & + wait
 ./run.sh &

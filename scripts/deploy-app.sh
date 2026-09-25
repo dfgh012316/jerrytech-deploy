@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 從 apps/_registry.yaml 讀 namespace / releaseName，對 cluster 做 helm upgrade --install。
-# 本機（ssh 到 Pi）與 CI（in-cluster self-hosted runner）共用同一支。
+# 本機（ssh 到 Pi）與 CI（in-cluster self-hosted runner）共用同一支。需要 Helm 4（兩邊都是 4.3.x）。
 #
 #   ./scripts/deploy-app.sh <app>              # 真的部署
 #   ./scripts/deploy-app.sh <app> --dry-run    # 只渲染比對，不動 cluster
@@ -29,9 +29,9 @@ ARGS=(upgrade --install "$RELEASE" "${ROOT}/charts/app"
   --history-max 5)
 
 if [ "$MODE" = "--dry-run" ]; then
-  ARGS+=(--dry-run --debug)
+  ARGS+=(--dry-run=client --debug)
 else
-  ARGS+=(--wait --timeout 5m --atomic)
+  ARGS+=(--wait --timeout 5m --rollback-on-failure)
 fi
 
 helm "${ARGS[@]}"

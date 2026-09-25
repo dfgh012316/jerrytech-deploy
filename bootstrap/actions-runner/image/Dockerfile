@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 # 自訂 self-hosted runner image：官方 actions-runner 疊加 helm / kubectl / yq，
 # 讓 in-cluster runner 能在 deploy job 直接 helm upgrade（不必每次 job 現裝工具）。
-FROM ghcr.io/actions/actions-runner:2.335.1
+# runner 版本只靠這行升級（entrypoint 用 --disableupdate 關掉自我更新，見 ../README.md「runner 版本」）
+FROM ghcr.io/actions/actions-runner:2.337.0
 
 USER root
 

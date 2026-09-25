@@ -46,6 +46,14 @@ gh api /repos/dfgh012316/jerrytech-deploy/actions/runners
 ```
 GitHub → Settings → Actions → Runners 應看到 `jerrytech-pi-runner` 為 Idle。
 
+## runner 版本
+
+entrypoint 用 `--disableupdate` 關掉 runner 的自我更新，版本只由 `image/Dockerfile` 的 `FROM ghcr.io/actions/actions-runner:<版本>` 決定。
+
+- 理由：在這個 container 裡自我更新會失敗。2026-09-26 GitHub 要求 2.335.1 升到 2.337.0，更新腳本換完 bin 後找不到 `Runner.Listener`（exit 127），container 重建後又回到 image 的舊版。更新期間 runner 會略過 job，deploy job 因此被 cancel（"The job was not acquired by Runner of type self-hosted even after multiple attempts"）。
+- 代價：GitHub 要求關掉自動更新的 runner 在新版發布後 **30 天內**升級，逾期就不再派 job。看到 [actions/runner releases](https://github.com/actions/runner/releases) 出新版時，改 `FROM`、merge（自動 build），再 `kubectl -n actions-runner rollout restart deploy/actions-runner`。
+- 其他工具版本（helm / kubectl / yq）也在同一個 Dockerfile，與 Pi host 和 k3s 對齊。
+
 ## 撤除
 ```bash
 helm uninstall actions-runner -n actions-runner

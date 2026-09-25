@@ -22,7 +22,7 @@ jobs:
       - name: Setup helm（對齊 runner image 版本）
         uses: azure/setup-helm@v4
         with:
-          version: v3.16.4
+          version: v4.3.0
 
       - name: Install kubeconform
         run: |

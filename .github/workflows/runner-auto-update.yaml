@@ -1,0 +1,140 @@
+name: Runner auto-update
+
+# 每天檢查 actions/runner 有沒有新版，自動把 in-cluster runner 升上去，不必人工追版本。
+#   runner 以 --disableupdate 註冊（container 裡自我更新會壞，見 bootstrap/actions-runner/README.md），
+#   GitHub 規定新版發布 30 天內要升，否則不再派 job；重大安全更新則立即停派。
+#
+# check-runner（self-hosted）：執行中的 runner 版本要等於 Dockerfile 的 FROM（抓「bump 了卻沒換上」）
+# bump（GitHub-hosted）      ：有新版且 base image 已上 GHCR → 改 FROM / appVersion → bot commit 到 main
+# build（reusable）          ：build-runner-image.yaml（內建 GITHUB_TOKEN 的 push 不會觸發 push workflow，所以直接呼叫）
+# restart（self-hosted）     ：建 bootstrap/actions-runner/restart-job.yaml 的一次性 Job，由它等 runner 閒置後重建 pod
+on:
+  schedule:
+    - cron: '17 19 * * *'   # 每天 03:17 Asia/Taipei
+  workflow_dispatch:
+    inputs:
+      rebuild:
+        description: '版本沒變也 rebuild image 並重啟 runner（測試用）'
+        type: boolean
+        default: false
+
+concurrency:
+  group: runner-auto-update
+  cancel-in-progress: false
+
+jobs:
+  check-runner:
+    runs-on: [self-hosted, pi, k3s]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 執行中的 runner 版本 = Dockerfile
+        run: |
+          set -euo pipefail
+          WANT="$(sed -nE 's|^FROM ghcr\.io/actions/actions-runner:([0-9.]+)$|\1|p' bootstrap/actions-runner/image/Dockerfile)"
+          # --version 會先印一堆 trace，版本號是單獨一行
+          HAVE="$(/home/runner/bin/Runner.Listener --version 2>/dev/null | grep -xE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
+          echo "Dockerfile=${WANT} running=${HAVE}"
+          helm version --short
+          kubectl version --client | head -n1
+          if [ -z "$WANT" ] || [ "$WANT" != "$HAVE" ]; then
+            echo "::error::runner 執行中是 ${HAVE:-unknown}，Dockerfile 是 ${WANT:-unknown}。bump 後沒換上？看 kubectl -n actions-runner get job -l app.kubernetes.io/name=runner-restart"
+            exit 1
+          fi
+
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      build: ${{ steps.bump.outputs.build }}
+      sha: ${{ steps.bump.outputs.sha }}
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 有新版就 bump FROM
+        id: bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REBUILD: ${{ inputs.rebuild || false }}
+        run: |
+          set -euo pipefail
+          DF=bootstrap/actions-runner/image/Dockerfile
+          CHART=bootstrap/actions-runner/chart/Chart.yaml
+          SEMVER='^[0-9]+\.[0-9]+\.[0-9]+$'
+          CUR="$(sed -nE 's|^FROM ghcr\.io/actions/actions-runner:([0-9.]+)$|\1|p' "$DF")"
+          LATEST="$(gh api repos/actions/runner/releases/latest --jq .tag_name)"
+          LATEST="${LATEST#v}"
+          if ! [[ "$CUR" =~ $SEMVER && "$LATEST" =~ $SEMVER ]]; then
+            echo "::error::解析版本失敗：Dockerfile='${CUR}' latest='${LATEST}'"
+            exit 1
+          fi
+          echo "Dockerfile=${CUR} latest=${LATEST}"
+          NEWEST="$(printf '%s\n%s\n' "$CUR" "$LATEST" | sort -V | tail -n1)"
+
+          if [ "$LATEST" != "$CUR" ] && [ "$NEWEST" = "$LATEST" ]; then
+            # release 發布後 base image 可能晚一點才推上 GHCR；還沒有就明天再試
+            T="$(curl -fsSL "https://ghcr.io/token?scope=repository:actions/actions-runner:pull" | jq -r .token)"
+            if ! curl -fsSI -o /dev/null -H "Authorization: Bearer ${T}" \
+                -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+                "https://ghcr.io/v2/actions/actions-runner/manifests/${LATEST}"; then
+              echo "::notice::ghcr.io/actions/actions-runner:${LATEST} 還沒上 GHCR，明天再試"
+              echo "build=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sed -i -E "s|^(FROM ghcr\.io/actions/actions-runner:)${CUR}\$|\1${LATEST}|" "$DF"
+            sed -i -E "s|^appVersion: \"${CUR}\"\$|appVersion: \"${LATEST}\"|" "$CHART"
+            git diff --stat
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "$DF" "$CHART"
+            git commit -m "chore(runner): bump actions-runner to ${LATEST}"
+            git pull --rebase origin main   # deploy-app 的 tag commit 可能剛好先 push
+            git push origin HEAD:main
+            { echo "build=true"; echo "version=${LATEST}"; echo "sha=$(git rev-parse HEAD)"; } >> "$GITHUB_OUTPUT"
+          elif [ "$REBUILD" = "true" ]; then
+            { echo "build=true"; echo "version=${CUR}"; echo "sha=$(git rev-parse HEAD)"; } >> "$GITHUB_OUTPUT"
+          else
+            echo "已是最新版，不需更新"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: bump
+    if: needs.bump.outputs.build == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-runner-image.yaml
+    with:
+      ref: ${{ needs.bump.outputs.sha }}
+
+  restart:
+    needs: [bump, build]
+    runs-on: [self-hosted, pi, k3s]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+
+      - name: 建一次性 Job 重啟 runner
+        env:
+          SHA: ${{ needs.bump.outputs.sha }}
+          WANT: ${{ needs.bump.outputs.version }}
+          JOB: runner-restart-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          yq e '
+            .metadata.name = strenv(JOB) |
+            .spec.template.spec.containers[0].image = "ghcr.io/dfgh012316/jerrytech-runner:" + strenv(SHA) |
+            .spec.template.spec.containers[0].env[0].value = strenv(WANT)
+          ' bootstrap/actions-runner/restart-job.yaml | kubectl apply -f -
+          {
+            echo "### Runner restart 已排程 🔁"
+            echo "- 目標版本：\`${WANT}\`"
+            echo "- 進度：\`kubectl -n actions-runner logs job/${JOB} -f\`"
+          } >> "$GITHUB_STEP_SUMMARY"

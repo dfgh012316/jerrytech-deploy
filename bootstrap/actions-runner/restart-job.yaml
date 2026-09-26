@@ -1,0 +1,58 @@
+# runner-auto-update.yaml 用的一次性 Job：換上新 runner image。
+# runner 不能在自己的 job 裡重啟自己（Deployment 是 Recreate，會連同正在跑的 job 一起殺掉），
+# 所以 workflow 只負責建這個 Job 就結束；Job 等 runner 閒置 → rollout restart → 確認新版本上線。
+# metadata.name / image / WANT 由 workflow 用 yq 填入。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: runner-restart
+  namespace: actions-runner
+  labels:
+    app.kubernetes.io/name: runner-restart
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: runner-restart
+    spec:
+      serviceAccountName: actions-runner
+      restartPolicy: Never
+      containers:
+        - name: restart
+          # 新 build 的 runner image（裡面有 kubectl）；順便先把它拉到節點上
+          image: ghcr.io/dfgh012316/jerrytech-runner:latest
+          env:
+            - name: WANT
+              value: ""
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              ns=actions-runner
+              # 1) 讓建立這個 Job 的 workflow job 先結束，再等 runner 閒置（最後一筆 job 訊息不是 "Running job"）
+              sleep 30
+              for _ in $(seq 1 60); do
+                last="$(kubectl -n "$ns" logs deploy/actions-runner --since=6h 2>/dev/null \
+                  | grep -E 'Running job:|completed with result:' | tail -n1 || true)"
+                case "$last" in
+                  *"Running job:"*) echo "runner 忙碌中，30 秒後再看：$last"; sleep 30 ;;
+                  *) break ;;
+                esac
+              done
+              # 2) 重建 runner pod（image 是 latest + pullPolicy Always，會拉到新 build）
+              kubectl -n "$ns" rollout restart deploy/actions-runner
+              kubectl -n "$ns" rollout status deploy/actions-runner --timeout=10m
+              # 3) 確認新 pod 以預期版本上線
+              for _ in $(seq 1 36); do
+                if kubectl -n "$ns" logs deploy/actions-runner 2>/dev/null | grep -q "Current runner version: '${WANT}'"; then
+                  echo "runner ${WANT} 已上線"
+                  exit 0
+                fi
+                sleep 5
+              done
+              echo "runner 沒有以 ${WANT} 上線，最後的 log："
+              kubectl -n "$ns" logs deploy/actions-runner --tail=30 || true
+              exit 1

@@ -2,7 +2,7 @@
 
 > **2026-09-26 已執行完成**，結果與偏差見文末「執行紀錄」。
 >
-> 這是**手動執行的 runbook**，預定在內網直連 Pi 時一次跑完四次升級。本文的現況都是 2026-09-23 唯讀盤點的結果，執行當天要先跑「步驟 0」，確認現況沒有變。背景事實見 jerry-wiki `repos/jerrytech-deploy.md` 的「k3s 升級前提」與 `concepts/deployment.md` 的「維運存取」。
+> 這是**手動執行的 runbook**，預定在內網直連 Pi 時一次跑完四次升級。本文的現況都是 2026-09-23 唯讀盤點的結果，執行當天要先跑「步驟 0」，確認現況沒有變。背景事實見 jerry-wiki `repos/jerrytech-deploy.md` 的「k3s 升級」與 `concepts/deployment.md` 的「維運存取」。
 
 ## 執行條件
 
@@ -209,8 +209,9 @@ systemctl start k3s
   - 2026-09-26：新 image（helm 4.3.0、kubectl 1.36.4）的 selftest 通過，但接著 GitHub 要求 runner 2.335.1 自我更新到 2.337.0，更新在 container 裡失敗，runner 更新期間略過了測試部署的 job（被 cancel，叢集未受影響）。修正：base image 升到 2.337.0 並加 `--disableupdate`（#11，見 `bootstrap/actions-runner/README.md`「runner 版本」）。
   - 修正後 runner 2.337.0 連續跑 selftest 與 `deploy-app -f app=slipkit` 都成功：slipkit revision 39、`APPLY_METHOD: client-side apply`，pod 沒有重建。
 - [x] `scripts/deploy-app.sh` 的 `--atomic` 改 `--rollback-on-failure`、`--dry-run` 改 `--dry-run=client`（host 與 runner 都已是 Helm 4）。
-- [ ] Pi host 的 helmfile 0.171.0 在 Helm 4 下會壞（呼叫已移除的 `helm version --client`），需要 ≥1.2.0；目前看起來沒在用。
-- [ ] 同步 jerry-wiki：k3s 版本、traefik 已停用、`config.yaml` 已存在、host 與 runner 都是 Helm 4。
+- [x] Pi host 的 helmfile 0.171.0 在 Helm 4 下會壞（呼叫已移除的 `helm version --client`），確認沒在用後已移除（2026-09-26）。
+- [x] 同步 jerry-wiki：k3s 版本、traefik 已停用、`config.yaml` 已存在、host 與 runner 都是 Helm 4（2026-09-26）。
+- [x] runner 版本改由 `runner-auto-update.yaml` 每天自動追（見 `bootstrap/actions-runner/README.md`「runner 版本」）。
 
 Helm 4 與既有 release 的相容性：三個 release（slipkit、popofinder、actions-runner）都是 Helm 3 建的，`helm get metadata` 顯示 `APPLY_METHOD: client-side apply (defaulted)`。Helm 4 的 upgrade 會沿用前一個 revision 的 apply method，只有全新 `helm install` 預設用 server-side apply，所以在 host 上不要對既有 app 重新 install，也不要加 `--server-side=true`。
 
@@ -237,7 +238,8 @@ traefik 在之後的每一跳都沒有被裝回來，host 的 80/443 也沒被�
 - 步驟 2、3 包成 `$D/step2-disable-traefik.sh`、`$D/step3-upgrade.sh <V>`（先驗版本與 checksum、備份目錄已存在就中止、`set -eu`），用 `screen -dmS` 背景執行，log 在 `$D/logs/`。確認過 k3s unit 是 `KillMode=process`。
 - 穩定觀察：v1.33.13 看 12 分鐘，之後每跳 5 分鐘。
 - 步驟 4.2 的測試部署延到 runner 換成 Helm 4 之後一起做。
-- 待辦：2026-10-03 之後刪 `$D/v1.*`。
+- 下載的 `$D/v1.*` 已在 2026-09-26 刪除（273M）；`$D/backup` 保留到下次升級。
+- 升級後 containerd 從 3.8G 長回 6.0G（各版 k3s 系統元件 image、換下的 runner image），根分割區剩 8.2G。`k3s crictl rmi --prune` 後降到 3.4G、剩 11G。**注意 pause image**：pinned 標記留在舊版 `pause:3.6`，k3s 1.36 改用的 `pause:3.10.2` 沒有被標 pinned，所以被 prune 刪掉了（跑著的 pod 不受影響，新 pod 會自動重拉）。已重拉並手動補上 label：`k3s ctr -n k8s.io images label docker.io/rancher/mirrored-pause:3.10.2 io.cri-containerd.pinned=pinned`（digest ref 也一起）。下次升級後 prune 前，先用 `k3s crictl images -o json` 確認目前的 sandbox image（`/var/lib/rancher/k3s/agent/etc/containerd/config.toml` 的 `pinned_images.sandbox`）是 pinned。
 
 ## 附錄：2026-09-23 磁碟盤點與 image 清理
 
@@ -253,7 +255,7 @@ traefik 在之後的每一跳都沒有被裝回來，host 的 80/443 也沒被�
 
 沒在用的 image 包括：slipkit 與 slipbox 的舊 tag 66 個、舊版 cloudflared 9 個，以及已退役的 argocd、postgres:15、papiin-api、agent-feed、redis、busybox 等。
 
-`k3s crictl rmi --prune` 只會刪掉沒有被任何 container（包括已結束的）引用的 image；pause image 是 pinned，不會被刪。執行後剩 10 個 image，containerd 目錄降到 3.8G，根分割區剩 12G 可用。所有 pod 未受影響，兩個 `/readyz` 都回 200。之後 rollback app 到舊 tag，或 local-path 需要 busybox helper 時，會重新拉 image，這是預期行為。
+`k3s crictl rmi --prune` 只會刪掉沒有被任何 container（包括已結束的）引用的 image；pause image 是 pinned，不會被刪（但 k3s 升級換了 pause 版本後不一定，見上方執行紀錄）。執行後剩 10 個 image，containerd 目錄降到 3.8G，根分割區剩 12G 可用。所有 pod 未受影響，兩個 `/readyz` 都回 200。之後 rollback app 到舊 tag，或 local-path 需要 busybox helper 時，會重新拉 image，這是預期行為。
 
 尚未處理的部分：
 

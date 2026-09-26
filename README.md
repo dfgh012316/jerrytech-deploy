@@ -37,7 +37,9 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 └── .github/workflows/
     ├── deploy-app.yaml           # repository_dispatch + workflow_dispatch → deploy
     ├── chart-ci.yaml             # PR gate: chart-check.sh + Chart.yaml version bump check
-    └── build-runner-image.yaml   # build the arm64 runner image → GHCR
+    ├── build-runner-image.yaml   # build the arm64 runner image → GHCR (push / manual / workflow_call)
+    ├── runner-auto-update.yaml   # daily: bump actions-runner base image → build → restart the runner
+    └── runner-selftest.yaml      # manual: runner tools / in-cluster kubectl & helm / RBAC check
 ```
 
 ## CI/CD Flow

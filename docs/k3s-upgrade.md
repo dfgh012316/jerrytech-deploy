@@ -176,9 +176,35 @@ k3s kubectl -n actions-runner rollout status deploy/actions-runner --timeout=300
      "sudo tar -C /root --exclude='k3s-upgrade/v1.*' -czf - k3s-upgrade" > ~/Backups/jerrytech-pi/k3s-upgrade-backup-$(date +%F).tar.gz
    ```
 
-4. 穩定運行一週後刪掉 `$D/v1.*`（下載的 binary）。`$D/backup` 保留到下次升級。
+4. 穩定運行後刪掉 `$D/v1.*`（下載的 binary）與 `$D/backup`。之後要 rollback，只能用步驟 3 拉到工作站的 tarball。備份停在升級當下的狀態，越晚還原，遺失的 cluster 變更越多。
+5. 清掉舊版 k3s data dir。每個 k3s 版本會解壓一份 `/var/lib/rancher/k3s/data/<hash>/`（每份約 230M），k3s 只維護 `current`／`previous` 兩個 symlink，舊的不會自動清。**不能直接刪**：升級時沒重啟的 pod，它的 `containerd-shim-runc-v2` 還在跑舊目錄的 binary，`PATH` 也指向舊目錄的 `bin`（`runc` 從這裡找）；刪掉之後 exec probe 和停止 container 都會失敗。步驟如下（服務會短暫中斷）：
+
+   ```sh
+   # 1. 找出 shim 還在用舊目錄的 pod：每個 shim 對應一個 pod sandbox
+   for p in $(pgrep -f containerd-shim-runc-v2); do
+     echo "$(readlink /proc/$p/exe | cut -d/ -f7 | cut -c1-12) $(tr '\0' ' ' </proc/$p/cmdline | grep -o -- '-id [0-9a-f]*' | cut -c5-17)"
+   done
+   k3s crictl pods            # 用 sandbox id 對回 pod
+   ls -l /var/lib/rancher/k3s/data/current
+
+   # 2. 用 delete pod 讓 controller 重建（不要用 rollout restart，否則 pod template 會多出 annotation，和 git 不一致）。
+   #    等新 pod 的 Ready，不要等 deploy 的 Available：刪完馬上看會讀到舊狀態而直接回傳。
+   #    popo ns 裡已完成的 reconcile job pod 也帶 app=popofinder，所以用 pod-template-hash 選。
+   k3s kubectl -n <ns> delete pod <pod>
+   k3s kubectl -n <ns> wait --for=condition=Ready pod -l pod-template-hash=<hash> --timeout=300s
+
+   # 3. 確認沒有任何 process 還在引用舊目錄（maps/exe/cwd/environ 都要是 0），才刪
+   H=<old-hash>
+   grep -l "k3s/data/$H" /proc/[0-9]*/maps /proc/[0-9]*/environ 2>/dev/null | wc -l
+   for p in /proc/[0-9]*; do readlink $p/exe $p/cwd; done 2>/dev/null | grep -c "data/$H"
+   rm -rf /var/lib/rancher/k3s/data/$H
+   ```
+
+   順序是 kube-system 三個 → `postgres-0` → 兩個 app → cloudflared。cloudflared 是 `:latest` 加 `Always`，重建時會重新拉 image。`current` 不能刪；`previous` 指向的目錄刪掉後會變成 dangling symlink，下次升級時 k3s 會改寫它。
 
 ## Rollback
+
+如果 `$D/backup` 已經依收尾步驟 4 刪掉，先把工作站上的 tarball 傳回 Pi，解到 `/root`（`tar -C /root -xzf k3s-upgrade-backup-<date>.tar.gz`），再照下面還原。
 
 要退回哪一版，就用那一版目錄下的 `db`、`token`、`k3s` 一起還原；也可以直接跳回更早的版本，例如 `v1.32.6+k3s1`。備份之後叢集寫入的狀態會遺失，但升級窗口內沒有部署，實際只會少掉 events 與 leases。
 
@@ -238,7 +264,8 @@ traefik 在之後的每一跳都沒有被裝回來，host 的 80/443 也沒被�
 - 步驟 2、3 包成 `$D/step2-disable-traefik.sh`、`$D/step3-upgrade.sh <V>`（先驗版本與 checksum、備份目錄已存在就中止、`set -eu`），用 `screen -dmS` 背景執行，log 在 `$D/logs/`。確認過 k3s unit 是 `KillMode=process`。
 - 穩定觀察：v1.33.13 看 12 分鐘，之後每跳 5 分鐘。
 - 步驟 4.2 的測試部署延到 runner 換成 Helm 4 之後一起做。
-- 下載的 `$D/v1.*` 已在 2026-09-26 刪除（273M）；`$D/backup` 保留到下次升級。
+- 下載的 `$D/v1.*` 已在 2026-09-26 刪除（273M）。`$D/backup`（480M）在同一天確認穩定後也刪了，rollback 只剩工作站上的 `~/Backups/jerrytech-pi/k3s-upgrade-backup-2026-09-26.tar.gz`。
+- 升級後 `/var/lib/rancher/k3s/data/` 累積了 6 份（1.30.5、1.32.6、1.33.13、1.34.11、1.35.8、1.36.4，共 1.4G）。2026-09-26 照收尾步驟 5 處理：沒被引用的 3 份直接刪；還被 shim 使用的 1.32.6（postgres、popofinder、slipkit、cloudflared）和 1.34.11（coredns、metrics-server、local-path）先重建 pod 再刪。重建全部花約 2 分鐘，兩個 `/readyz` 都恢復 200，tunnel SSH 也正常。現在只剩 `current`。
 - 升級後 containerd 從 3.8G 長回 6.0G（各版 k3s 系統元件 image、換下的 runner image），根分割區剩 8.2G。`k3s crictl rmi --prune` 後降到 3.4G、剩 11G。**注意 pause image**：pinned 標記留在舊版 `pause:3.6`，k3s 1.36 改用的 `pause:3.10.2` 沒有被標 pinned，所以被 prune 刪掉了（跑著的 pod 不受影響，新 pod 會自動重拉）。已重拉並手動補上 label：`k3s ctr -n k8s.io images label docker.io/rancher/mirrored-pause:3.10.2 io.cri-containerd.pinned=pinned`（digest ref 也一起）。下次升級後 prune 前，先用 `k3s crictl images -o json` 確認目前的 sandbox image（`/var/lib/rancher/k3s/agent/etc/containerd/config.toml` 的 `pinned_images.sandbox`）是 pinned。
 
 ## 附錄：2026-09-23 磁碟盤點與 image 清理
@@ -257,8 +284,12 @@ traefik 在之後的每一跳都沒有被裝回來，host 的 80/443 也沒被�
 
 `k3s crictl rmi --prune` 只會刪掉沒有被任何 container（包括已結束的）引用的 image；pause image 是 pinned，不會被刪（但 k3s 升級換了 pause 版本後不一定，見上方執行紀錄）。執行後剩 10 個 image，containerd 目錄降到 3.8G，根分割區剩 12G 可用。所有 pod 未受影響，兩個 `/readyz` 都回 200。之後 rollback app 到舊 tag，或 local-path 需要 busybox helper 時，會重新拉 image，這是預期行為。
 
+2026-09-26 的後續清理：
+
+- journal：新增 `/etc/systemd/journald.conf.d/size.conf`（`SystemMaxUse=500M`）並重啟 journald，用量從 2.9G 降到 405M。原本沒設上限，吃的是 journald 的預設上限：檔案系統的 10%，最多 4G。
+- `.vscode-server`：依 `cli/servers/lru.json` 只留最新的 server，刪掉 4 個舊版（約 0.85G）。
+- 加上 `apt-get clean`，以及上方執行紀錄裡的 k3s data dir 與 `$D/backup`，根分割區可用空間從 11.0 GiB 增加到 16.1 GiB（41%）。可用空間的上限約 27.2 GiB（ext4 28.7 GiB，扣掉 5% root 保留）。
+
 尚未處理的部分：
 
-- journal 可以用 `journalctl --vacuum-size=500M` 回收，並在 `/etc/systemd/journald.conf` 設 `SystemMaxUse=` 做長期上限。
-- `.vscode-server` 裡的舊版 server 可以刪除。
 - 執行中的 runner container 的 writable layer 約 0.8G（`crictl stats`）。它只會隨 container 重建而重置；要根治得把工作目錄改掛 `emptyDir`。

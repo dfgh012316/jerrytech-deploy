@@ -22,12 +22,18 @@ concurrency:
   group: runner-auto-update
   cancel-in-progress: false
 
+# 預設只給 GITHUB_TOKEN 讀權限；需要寫的 job 各自宣告
+permissions:
+  contents: read
+
 jobs:
   check-runner:
     runs-on: [self-hosted, pi, k3s]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false   # 常駐 runner：不把 token 留在 _work 的 .git/config
 
       - name: 執行中的 runner 版本 = Dockerfile
         run: |
@@ -53,7 +59,9 @@ jobs:
       sha: ${{ steps.bump.outputs.sha }}
       version: ${{ steps.bump.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: true   # 後面要 git pull --rebase / git push（GitHub-hosted，job 結束即銷毀）
 
       - name: 有新版就 bump FROM
         id: bump
@@ -117,9 +125,10 @@ jobs:
     runs-on: [self-hosted, pi, k3s]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.bump.outputs.sha }}
+          persist-credentials: false   # 常駐 runner：不把 token 留在 _work 的 .git/config
 
       - name: 建一次性 Job 重啟 runner
         env:

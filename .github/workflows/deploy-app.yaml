@@ -20,6 +20,10 @@ on:
         required: false
         type: string
 
+# 預設只給 GITHUB_TOKEN 讀權限；需要寫的 job 各自宣告
+permissions:
+  contents: read
+
 jobs:
   commit-tag:
     runs-on: ubuntu-latest
@@ -48,7 +52,9 @@ jobs:
           echo "app=$APP" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: true   # Commit & push 要用 GITHUB_TOKEN push（GitHub-hosted，job 結束即銷毀）
 
       - name: Bump image tag（有給 tag 才改）
         if: ${{ steps.r.outputs.tag != '' }}
@@ -80,9 +86,10 @@ jobs:
     runs-on: [self-hosted, pi, k3s]
     steps:
       - name: Checkout（含剛 push 的 tag commit）
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.commit-tag.outputs.sha }}
+          persist-credentials: false   # 常駐 runner：不把 token 留在 _work 的 .git/config
 
       - name: Helm upgrade
         env:

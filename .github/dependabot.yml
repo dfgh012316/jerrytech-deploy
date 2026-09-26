@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # workflow 裡的 action 都 pin 在 commit SHA；由 Dependabot 更新 SHA 與後面的版本註解。
+  # minor / patch 合成一個 PR；major 各自一個 PR（行為可能改變，要看 release notes）。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: ci

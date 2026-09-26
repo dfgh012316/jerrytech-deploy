@@ -5,6 +5,8 @@ name: Runner selftest
 on:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   selftest:
     runs-on: [self-hosted, pi, k3s]

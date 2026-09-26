@@ -62,6 +62,31 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 | Generic Helm chart (`charts/app`) | One chart for all services; per-app diffs live in `apps/<app>/values.yaml` |
 | Secrets via manual `kubectl create secret` | Never committed to git |
 
+## Security Model
+
+This is a **public** repo whose workflows can deploy through a **self-hosted runner** inside the cluster. GitHub recommends self-hosted runners only for private repos, because whoever gets a job onto the runner inherits its access. This section explains what limits that exposure and which risks are still open.
+
+**Who can get a job onto the runner**
+
+| Path | Guard |
+|------|-------|
+| Existing workflows | Self-hosted jobs only run on `repository_dispatch`, `workflow_dispatch` and `schedule`. Both dispatch events require a token with write access to this repo (app repos send a GitHub App token); `schedule` always runs the default-branch version. |
+| Fork pull requests | PR CI (`chart-ci.yaml`) runs on GitHub-hosted runners. A fork PR could still *add* a workflow targeting `[self-hosted, pi, k3s]`, so runs from **all** outside contributors need manual approval (fork PR approval policy: `all_external_contributors`). Rule: never approve a run for a fork PR that touches `.github/workflows/`. |
+| Workflow inputs | `app` / `tag` from dispatch payloads and manual inputs go through `env:`, never expanded inside `run:`. `app` must be on the allowlist and `tag` must match the Docker tag grammar before anything uses them. Checked with [zizmor](https://github.com/zizmorcore/zizmor): no template-injection findings. |
+
+**Other controls**
+
+- The default `GITHUB_TOKEN` is read-only; only the GitHub-hosted `commit-tag` job gets `contents: write`.
+- The cluster exposes no Service outside itself: every Service is `ClusterIP`, with no Ingress, NodePort or LoadBalancer. Web traffic and remote SSH come in through Cloudflare Tunnel. `ssh.jerrytech.me` sits behind a Cloudflare Access policy, and sshd accepts public keys only.
+- Secrets are created out-of-band with `kubectl create secret` and never committed.
+
+**Known residual risks** (accepted for a single-owner homelab)
+
+- The runner is long-lived (not `--ephemeral`), and its ClusterRole grants `*` on pods, workloads and Secrets in every namespace. No Pod Security admission is enforced, so code running on the runner effectively has root on the node.
+- The runner pod holds a PAT that can manage this repo's runners (classic `repo` scope or fine-grained *Administration: write*).
+- No NetworkPolicy: every pod can reach every other pod, including PostgreSQL.
+- Third-party actions are pinned by tag, not by commit SHA.
+
 ## Chart (`charts/app`)
 
 - Values are validated by `charts/app/values.schema.json`; unknown keys fail at template time.

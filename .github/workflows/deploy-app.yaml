@@ -29,41 +29,48 @@ jobs:
       app: ${{ steps.r.outputs.app }}
       sha: ${{ steps.push.outputs.sha }}
     steps:
-      - name: Resolve inputs（dispatch / manual 兩種來源）
+      # 外部輸入一律經 env 傳進 shell，不在 run: 裡直接展開 ${{ }}（避免 template injection）。
+      # 驗證通過才寫進 $GITHUB_OUTPUT，後面的 step / job 只讀驗證過的值。
+      - name: Resolve & validate inputs（dispatch / manual 兩種來源）
         id: r
+        env:
+          APP: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.app || inputs.app }}
+          TAG: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || inputs.tag }}
         run: |
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            echo "app=${{ github.event.client_payload.app }}" >> "$GITHUB_OUTPUT"
-            echo "tag=${{ github.event.client_payload.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "app=${{ inputs.app }}" >> "$GITHUB_OUTPUT"
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Validate app allowlist
-        run: |
-          case "${{ steps.r.outputs.app }}" in
+          case "$APP" in
             popofinder|slipkit) : ;;
-            *) echo "::error::app '${{ steps.r.outputs.app }}' 不在 allowlist"; exit 1 ;;
+            *) echo "::error::app 不在 allowlist（popofinder / slipkit）"; exit 1 ;;
           esac
+          # 空值 = 不改 tag；其餘必須符合 Docker tag 語法（整串比對，換行也會被擋）
+          if [ -n "$TAG" ] && ! [[ "$TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "::error::tag 格式不合法（需符合 [A-Za-z0-9_][A-Za-z0-9_.-]{0,127}）"; exit 1
+          fi
+          echo "app=$APP" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v5
 
       - name: Bump image tag（有給 tag 才改）
         if: ${{ steps.r.outputs.tag != '' }}
+        env:
+          APP: ${{ steps.r.outputs.app }}
+          TAG: ${{ steps.r.outputs.tag }}
         run: |
-          yq e -i '.image.tag = "${{ steps.r.outputs.tag }}"' "apps/${{ steps.r.outputs.app }}/values.yaml"
+          yq e -i '.image.tag = strenv(TAG)' "apps/$APP/values.yaml"
 
       - name: Commit & push
         id: push
+        env:
+          APP: ${{ steps.r.outputs.app }}
+          TAG: ${{ steps.r.outputs.tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if git diff --quiet; then
             echo "values 無變更（tag 相同或未給），沿用現有 commit"
           else
-            git add "apps/${{ steps.r.outputs.app }}/values.yaml"
-            git commit -m "chore(${{ steps.r.outputs.app }}): update image tag to ${{ steps.r.outputs.tag }}"
+            git add "apps/$APP/values.yaml"
+            git commit -m "chore($APP): update image tag to $TAG"
             git push
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -78,12 +85,17 @@ jobs:
           ref: ${{ needs.commit-tag.outputs.sha }}
 
       - name: Helm upgrade
+        env:
+          APP: ${{ needs.commit-tag.outputs.app }}
         run: |
           chmod +x scripts/deploy-app.sh
-          ./scripts/deploy-app.sh "${{ needs.commit-tag.outputs.app }}"
+          ./scripts/deploy-app.sh "$APP"
 
       - name: Summary
         if: always()
+        env:
+          APP: ${{ needs.commit-tag.outputs.app }}
+          SHA: ${{ needs.commit-tag.outputs.sha }}
         run: |
-          echo "### Deploy ${{ needs.commit-tag.outputs.app }} 🚀" >> "$GITHUB_STEP_SUMMARY"
-          echo "- commit: \`${{ needs.commit-tag.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Deploy $APP 🚀" >> "$GITHUB_STEP_SUMMARY"
+          echo "- commit: \`$SHA\`" >> "$GITHUB_STEP_SUMMARY"

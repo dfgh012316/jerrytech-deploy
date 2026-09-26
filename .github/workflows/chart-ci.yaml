@@ -33,8 +33,10 @@ jobs:
         run: ./scripts/chart-check.sh
 
       - name: Chart version bumped when chart content changes
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          BASE="origin/${{ github.base_ref }}"
+          BASE="origin/$BASE_REF"
           if git diff --quiet "${BASE}...HEAD" -- charts/app ':!charts/app/Chart.yaml'; then
             echo "charts/app 內容無變動，不需 bump"; exit 0
           fi

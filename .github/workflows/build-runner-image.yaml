@@ -57,9 +57,11 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Summary
+        env:
+          REF: ${{ inputs.ref || github.sha }}
         run: |
           {
             echo "### Runner image 🏗️"
             echo "- \`ghcr.io/dfgh012316/jerrytech-runner:latest\`"
-            echo "- \`ghcr.io/dfgh012316/jerrytech-runner:${{ inputs.ref || github.sha }}\`"
+            echo "- \`ghcr.io/dfgh012316/jerrytech-runner:$REF\`"
           } >> "$GITHUB_STEP_SUMMARY"

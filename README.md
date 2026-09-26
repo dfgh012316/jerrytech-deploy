@@ -72,11 +72,14 @@ This is a **public** repo whose workflows can deploy through a **self-hosted run
 |------|-------|
 | Existing workflows | Self-hosted jobs only run on `repository_dispatch`, `workflow_dispatch` and `schedule`. Both dispatch events require a token with write access to this repo (app repos send a GitHub App token); `schedule` always runs the default-branch version. |
 | Fork pull requests | PR CI (`chart-ci.yaml`) runs on GitHub-hosted runners. A fork PR could still *add* a workflow targeting `[self-hosted, pi, k3s]`, so runs from **all** outside contributors need manual approval (fork PR approval policy: `all_external_contributors`). Rule: never approve a run for a fork PR that touches `.github/workflows/`. |
-| Workflow inputs | `app` / `tag` from dispatch payloads and manual inputs go through `env:`, never expanded inside `run:`. `app` must be on the allowlist and `tag` must match the Docker tag grammar before anything uses them. Checked with [zizmor](https://github.com/zizmorcore/zizmor): no template-injection findings. |
+| Workflow inputs | `app` / `tag` from dispatch payloads and manual inputs go through `env:`, never expanded inside `run:`. `app` must be on the allowlist and `tag` must match the Docker tag grammar before anything uses them. |
 
 **Other controls**
 
-- The default `GITHUB_TOKEN` is read-only; only the GitHub-hosted `commit-tag` job gets `contents: write`.
+- Every workflow sets `permissions:` explicitly: read-only by default, `contents: write` only for the two GitHub-hosted jobs that push (`deploy-app` / `commit-tag` and `runner-auto-update` / `bump`), and `packages: write` only for the image build.
+- `actions/checkout` runs with `persist-credentials: false`, so no token is left in the long-lived runner's `_work` directory. The two push jobs are the exception; they run on GitHub-hosted VMs that are thrown away after the job.
+- Third-party actions are pinned to commit SHAs (version in a trailing comment). Dependabot proposes updates monthly with a 7-day cooldown; major versions come as separate PRs.
+- Workflows are checked with [zizmor](https://github.com/zizmorcore/zizmor) (`uvx zizmor --offline .github`: no errors or warnings) and [actionlint](https://github.com/rhysd/actionlint).
 - The cluster exposes no Service outside itself: every Service is `ClusterIP`, with no Ingress, NodePort or LoadBalancer. Web traffic and remote SSH come in through Cloudflare Tunnel. `ssh.jerrytech.me` sits behind a Cloudflare Access policy, and sshd accepts public keys only.
 - Secrets are created out-of-band with `kubectl create secret` and never committed.
 
@@ -85,7 +88,6 @@ This is a **public** repo whose workflows can deploy through a **self-hosted run
 - The runner is long-lived (not `--ephemeral`), and its ClusterRole grants `*` on pods, workloads and Secrets in every namespace. No Pod Security admission is enforced, so code running on the runner effectively has root on the node.
 - The runner pod holds a PAT that can manage this repo's runners (classic `repo` scope or fine-grained *Administration: write*).
 - No NetworkPolicy: every pod can reach every other pod, including PostgreSQL.
-- Third-party actions are pinned by tag, not by commit SHA.
 
 ## Chart (`charts/app`)
 
@@ -106,4 +108,4 @@ Applied manually (see per-component READMEs):
 
 - **Release**: app repo push → fully automatic.
 - **Manual redeploy**: Actions → *Deploy app* → `workflow_dispatch` (app + tag).
-- **Config-only change**: edit `apps/<app>/values.yaml`, then ssh to the Pi and run `scripts/deploy-app.sh <app>`, or use `workflow_dispatch`.
+- **Config-only change**: edit `apps/<app>/values.yaml`, push to `main`, then run *Deploy app* with the tag left empty (`gh workflow run deploy-app.yaml -f app=<app>`); helm re-applies the current values. Don't run `scripts/deploy-app.sh` from the Pi host: the checkout there is stale, while CI checks out the latest `main` on every run.

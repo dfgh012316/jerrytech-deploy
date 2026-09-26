@@ -31,7 +31,7 @@ jobs:
     runs-on: [self-hosted, pi, k3s]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false   # 常駐 runner：不把 token 留在 _work 的 .git/config
 
@@ -59,7 +59,7 @@ jobs:
       sha: ${{ steps.bump.outputs.sha }}
       version: ${{ steps.bump.outputs.version }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: true   # 後面要 git pull --rebase / git push（GitHub-hosted，job 結束即銷毀）
 
@@ -125,7 +125,7 @@ jobs:
     runs-on: [self-hosted, pi, k3s]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.bump.outputs.sha }}
           persist-credentials: false   # 常駐 runner：不把 token 留在 _work 的 .git/config

@@ -52,7 +52,7 @@ jobs:
           echo "app=$APP" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: true   # Commit & push 要用 GITHUB_TOKEN push（GitHub-hosted，job 結束即銷毀）
 
@@ -86,7 +86,7 @@ jobs:
     runs-on: [self-hosted, pi, k3s]
     steps:
       - name: Checkout（含剛 push 的 tag commit）
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.commit-tag.outputs.sha }}
           persist-credentials: false   # 常駐 runner：不把 token 留在 _work 的 .git/config

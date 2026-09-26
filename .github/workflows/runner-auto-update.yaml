@@ -4,12 +4,10 @@ name: Runner auto-update
 #   runner 以 --disableupdate 註冊（container 裡自我更新會壞，見 bootstrap/actions-runner/README.md），
 #   GitHub 規定新版發布 30 天內要升，否則不再派 job；重大安全更新則立即停派。
 #
-# check-runner（self-hosted）：執行中的 runner 版本是否等於 Dockerfile 的 FROM；不一致（上次 bump 沒換上）→ stale
-# bump（GitHub-hosted）      ：有新版且 base image 已上 GHCR → 改 FROM / appVersion → bot commit 到 main；
-#                              沒新版但 stale（或手動 rebuild）→ 用目前 HEAD 重新 build + restart
+# check-runner（self-hosted）：執行中的 runner 版本要等於 Dockerfile 的 FROM（抓「bump 了卻沒換上」）
+# bump（GitHub-hosted）      ：有新版且 base image 已上 GHCR → 改 FROM / appVersion → bot commit 到 main
 # build（reusable）          ：build-runner-image.yaml（內建 GITHUB_TOKEN 的 push 不會觸發 push workflow，所以直接呼叫）
 # restart（self-hosted）     ：建 bootstrap/actions-runner/restart-job.yaml 的一次性 Job，由它等 runner 閒置後重建 pod
-# stale-alert               ：這次是因為 stale 才重試 → 讓 run 失敗，GitHub 寄信通知
 on:
   schedule:
     - cron: '17 19 * * *'   # 每天 03:17 Asia/Taipei
@@ -28,13 +26,10 @@ jobs:
   check-runner:
     runs-on: [self-hosted, pi, k3s]
     timeout-minutes: 5
-    outputs:
-      stale: ${{ steps.check.outputs.stale }}
     steps:
       - uses: actions/checkout@v5
 
       - name: 執行中的 runner 版本 = Dockerfile
-        id: check
         run: |
           set -euo pipefail
           WANT="$(sed -nE 's|^FROM ghcr\.io/actions/actions-runner:([0-9.]+)$|\1|p' bootstrap/actions-runner/image/Dockerfile)"
@@ -43,20 +38,12 @@ jobs:
           echo "Dockerfile=${WANT} running=${HAVE}"
           helm version --short
           kubectl version --client | head -n1
-          if [ -z "$WANT" ] || [ -z "$HAVE" ]; then
-            echo "::error::取不到版本：Dockerfile='${WANT}' running='${HAVE}'"
+          if [ -z "$WANT" ] || [ "$WANT" != "$HAVE" ]; then
+            echo "::error::runner 執行中是 ${HAVE:-unknown}，Dockerfile 是 ${WANT:-unknown}。bump 後沒換上？看 kubectl -n actions-runner get job -l app.kubernetes.io/name=runner-restart"
             exit 1
-          fi
-          if [ "$WANT" != "$HAVE" ]; then
-            # 上次 bump 後 build 或 restart 沒成功；交給 bump 重新 build + restart，stale-alert 會讓這次 run 失敗通知
-            echo "::warning::runner 執行中是 ${HAVE}，Dockerfile 是 ${WANT}（上次 bump 沒換上），這次重新 build + restart"
-            echo "stale=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "stale=false" >> "$GITHUB_OUTPUT"
           fi
 
   bump:
-    needs: check-runner
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -73,7 +60,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REBUILD: ${{ inputs.rebuild || false }}
-          STALE: ${{ needs.check-runner.outputs.stale }}
         run: |
           set -euo pipefail
           DF=bootstrap/actions-runner/image/Dockerfile
@@ -109,8 +95,7 @@ jobs:
             git pull --rebase origin main   # deploy-app 的 tag commit 可能剛好先 push
             git push origin HEAD:main
             { echo "build=true"; echo "version=${LATEST}"; echo "sha=$(git rev-parse HEAD)"; } >> "$GITHUB_OUTPUT"
-          elif [ "$REBUILD" = "true" ] || [ "$STALE" = "true" ]; then
-            echo "重新 build 目前的 ${CUR}（rebuild=${REBUILD} stale=${STALE}）"
+          elif [ "$REBUILD" = "true" ]; then
             { echo "build=true"; echo "version=${CUR}"; echo "sha=$(git rev-parse HEAD)"; } >> "$GITHUB_OUTPUT"
           else
             echo "已是最新版，不需更新"
@@ -153,16 +138,3 @@ jobs:
             echo "- 目標版本：\`${WANT}\`"
             echo "- 進度：\`kubectl -n actions-runner logs job/${JOB} -f\`"
           } >> "$GITHUB_STEP_SUMMARY"
-
-  stale-alert:
-    needs: [check-runner, restart]
-    if: always() && needs.check-runner.outputs.stale == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: 上次 bump 沒換上
-        env:
-          RESTART: ${{ needs.restart.result }}
-        run: |
-          echo "::error::runner 版本與 Dockerfile 不一致（上次 bump 後 build 或 restart 失敗），這次已重新 build 並排程重啟（restart job: ${RESTART}）。確認：kubectl -n actions-runner get job -l app.kubernetes.io/name=runner-restart"
-          exit 1

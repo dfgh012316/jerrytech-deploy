@@ -1,19 +1,54 @@
-# Monitoring (not deployed)
+# Monitoring
 
-Preserved Helm values for the monitoring stack — **currently not deployed**.
-Kept here so the stack can be brought up later without re-deriving the config.
+| File | Upstream chart | Status |
+|------|----------------|--------|
+| `prometheus-values.yaml` | `prometheus-community/prometheus` 29.35.0 (Prometheus + node-exporter) | Minimal metrics history for the Pi — install manually (below) |
+| `kube-prometheus-stack-values.yaml` | `prometheus-community/kube-prometheus-stack` (Grafana + Prometheus + node-exporter + kube-state-metrics) | Preserved, not deployed |
+| `loki-values.yaml` | `grafana/loki` (SingleBinary mode, ARM64) | Preserved, not deployed |
+| `promtail-values.yaml` | `grafana/promtail` (ARM64) | Preserved, not deployed |
 
-## What's here
+## Prometheus (minimal)
 
-| File | Upstream chart |
-|------|----------------|
-| `kube-prometheus-stack-values.yaml` | `prometheus-community/kube-prometheus-stack` (Grafana + Prometheus + node-exporter + kube-state-metrics) |
-| `loki-values.yaml` | `grafana/loki` (SingleBinary mode, ARM64) |
-| `promtail-values.yaml` | `grafana/promtail` (ARM64) |
+Keeps metric history so before/after comparisons (e.g. memory across a k3s
+upgrade) don't depend on whatever `kubectl top` shows right now. No Grafana,
+Alertmanager or Ingress; nothing is exposed outside the cluster.
 
-Sized for a single Raspberry Pi node.
+Scrapes every 1m, keeps 30d, capped at 2GB on disk (SD card):
 
-## Before redeploying — read this
+| Job | Source | Use |
+|-----|--------|-----|
+| `kubelet-resource` | kubelet `/metrics/resource` | Same data as metrics-server: `node_memory_working_set_bytes` is `kubectl top node` |
+| `kubernetes-nodes-cadvisor` | kubelet `/metrics/cadvisor` | Per-cgroup memory/CPU for `/`, `/system.slice/k3s.service` and each pod/container |
+| `node-exporter` | DaemonSet | Host `/proc/meminfo`, vmstat, filesystem, thermal |
+
+kubelet `/metrics` (~31k series) and annotation-based pod/service discovery are
+disabled. node-exporter runs without `hostNetwork`, so it doesn't listen on the
+Pi's LAN/IPv6 addresses; its network interface metrics describe the pod, not `wlan0`.
+
+Install / upgrade (on the Pi: as root with `KUBECONFIG=/etc/rancher/k3s/k3s.yaml`):
+
+```sh
+helm upgrade --install prometheus oci://ghcr.io/prometheus-community/charts/prometheus \
+  --version 29.35.0 -n monitoring --create-namespace \
+  -f prometheus-values.yaml --wait
+```
+
+Query through the API server proxy (no port-forward needed):
+
+```sh
+kubectl get --raw '/api/v1/namespaces/monitoring/services/prometheus-server:80/proxy/api/v1/query?query=node_memory_working_set_bytes'
+```
+
+Web UI: `kubectl -n monitoring port-forward svc/prometheus-server 9090:80`.
+
+## Full stack (preserved, not deployed)
+
+Kept so the stack can be brought up later (e.g. on a cluster that needs
+dashboards and logs) without re-deriving the config. Sized for a single
+Raspberry Pi node. It brings its own Prometheus and node-exporter, so don't
+install it alongside the minimal Prometheus above.
+
+### Before redeploying — read this
 
 1. **Grafana admin secret.** Values reference `existingSecret: grafana-admin-credentials`. Create it manually:
 

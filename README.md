@@ -28,6 +28,7 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 │   ├── actions-runner/           # in-cluster runner: image/ + chart/
 │   ├── cloudflared/
 │   ├── common-config/
+│   ├── monitoring/               # minimal Prometheus + preserved full-stack values
 │   └── postgres/
 ├── charts/app/                   # generic Helm chart for all services
 ├── scripts/
@@ -102,6 +103,7 @@ Applied manually (see per-component READMEs):
 - [actions-runner](bootstrap/actions-runner/README.md) — in-cluster self-hosted runner
 - [Cloudflare Tunnel](bootstrap/cloudflared/README.md)
 - [common-config](bootstrap/common-config/README.md)
+- [monitoring](bootstrap/monitoring/README.md) — minimal Prometheus (metrics history, no Grafana)
 - [postgres](bootstrap/postgres/README.md)
 
 ## Day-2 Operations

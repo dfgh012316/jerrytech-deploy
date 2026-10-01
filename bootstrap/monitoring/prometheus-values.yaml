@@ -1,0 +1,70 @@
+# prometheus-community/prometheus 29.35.0 — minimal metrics history for the Pi.
+# Prometheus server + node-exporter only; no Grafana, Alertmanager or
+# kube-state-metrics. Query it through the API server proxy (see README).
+
+server:
+  retention: "30d"
+  # Bounds disk use on the SD card (local-path doesn't enforce the PVC size).
+  # ~3k series at 1m ≈ 50 samples/s × 1-2 B/sample → 30d ≈ 130-260MB.
+  # Keep it ≤80-85% of the volume (upstream): compaction briefly keeps source
+  # and new blocks on disk together.
+  retentionSize: "500MB"
+  persistentVolume:
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+alertmanager:
+  enabled: false
+kube-state-metrics:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+
+prometheus-node-exporter:
+  # Keep :9100 off the host's LAN/IPv6 interfaces. /proc, /sys and the root
+  # filesystem are still the host's (mounted), so memory/disk/thermal metrics
+  # are node-wide; only network interface stats become the pod's.
+  hostNetwork: false
+
+# Chart defaults scrape every annotated pod/service; keep only what we need.
+scrapeConfigs:
+  prometheus:
+    enabled: false
+  kubernetes-api-servers:
+    enabled: false
+  kubernetes-nodes:
+    enabled: false  # kubelet /metrics is ~31k series
+  kubernetes-service-endpoints:
+    enabled: false
+  kubernetes-service-endpoints-slow:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  kubernetes-services:
+    enabled: false
+  kubernetes-pods:
+    enabled: false
+  kubernetes-pods-slow:
+    enabled: false
+  # kubernetes-nodes-cadvisor (chart default): per-cgroup memory/CPU for
+  # /, /system.slice/k3s.service and every pod/container.
+  kubelet-resource:
+    # Same source metrics-server uses: node_memory_working_set_bytes is
+    # exactly what `kubectl top node` shows.
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      insecure_skip_verify: true
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    metrics_path: /metrics/resource
+    kubernetes_sd_configs:
+      - role: node
+  node-exporter:
+    static_configs:
+      - targets:
+          - prometheus-prometheus-node-exporter.monitoring.svc:9100

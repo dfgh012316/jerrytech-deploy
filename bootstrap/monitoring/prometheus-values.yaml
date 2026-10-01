@@ -5,11 +5,12 @@
 server:
   retention: "30d"
   # Bounds disk use on the SD card (local-path doesn't enforce the PVC size).
-  # Base-2 units: 1600MB ≈ 78% of the 2Gi volume; upstream recommends ≤80-85%
-  # because compaction briefly keeps source and new blocks on disk together.
-  retentionSize: "1600MB"
+  # ~3k series at 1m ≈ 50 samples/s × 1-2 B/sample → 30d ≈ 130-260MB.
+  # Keep it ≤80-85% of the volume (upstream): compaction briefly keeps source
+  # and new blocks on disk together.
+  retentionSize: "500MB"
   persistentVolume:
-    size: 2Gi
+    size: 1Gi
   resources:
     requests:
       cpu: 50m

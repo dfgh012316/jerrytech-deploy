@@ -13,7 +13,9 @@ Keeps metric history so before/after comparisons (e.g. memory across a k3s
 upgrade) don't depend on whatever `kubectl top` shows right now. No Grafana,
 Alertmanager or Ingress; nothing is exposed outside the cluster.
 
-Scrapes every 1m, keeps 30d, capped at 2GB on disk (SD card):
+Scrapes every 1m, keeps 30d, size retention 1600MB (about 80% of the 2Gi
+volume, leaving room for compaction; local-path doesn't enforce the PVC size,
+so this setting is what bounds disk use on the SD card):
 
 | Job | Source | Use |
 |-----|--------|-----|

@@ -4,8 +4,10 @@
 
 server:
   retention: "30d"
-  # SD card: cap on-disk TSDB (blocks + WAL) regardless of retention.
-  retentionSize: "2GB"
+  # Bounds disk use on the SD card (local-path doesn't enforce the PVC size).
+  # Base-2 units: 1600MB ≈ 78% of the 2Gi volume; upstream recommends ≤80-85%
+  # because compaction briefly keeps source and new blocks on disk together.
+  retentionSize: "1600MB"
   persistentVolume:
     size: 2Gi
   resources:

@@ -1,4 +1,4 @@
-# 網開一面（opencourt）：無 DB，上游資料只存在記憶體；Secret opencourt 放 LINE 憑證（LINE_MESSAGE_CHANNEL_SECRET、LINE_MESSAGE_CHANNEL_ACCESS_TOKEN），手動建立。
+# 網開一面（opencourt）：群組常去場地存在共用 PostgreSQL（db opencourt，role opencourt_app）；Secret opencourt 放 LINE 憑證（LINE_MESSAGE_CHANNEL_SECRET、LINE_MESSAGE_CHANNEL_ACCESS_TOKEN）與 DATABASE_URL，手動建立。
 imagePullSecrets:
   - name: ghcr-pull
 image:
@@ -19,4 +19,6 @@ env:
     value: "https://miniapp.line.me/2011903357-xLZtwPYK"
 commonConfigMapName: ""
 secret:
+  enabled: true
+migrations:
   enabled: true

@@ -1,0 +1,18 @@
+# 網開一面（opencourt）：無 DB、無 secret，上游資料只存在記憶體。
+imagePullSecrets:
+  - name: ghcr-pull
+image:
+  repository: "ghcr.io/dfgh012316/opencourt"
+  # 由 deploy-app.yaml 在每次部署時改寫；第一次 CI 部署前不會被使用。
+  tag: "bootstrap"
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 32Mi
+environment: "production"
+commonConfigMapName: ""
+secret:
+  enabled: false

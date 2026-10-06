@@ -9,6 +9,7 @@ Routes external traffic to in-cluster services via Cloudflare Tunnel (Zero Trust
 | `popo.jerrytech.me` | `http://popofinder.popo.svc:80` |
 | `ssh.jerrytech.me` | `ssh://192.168.1.188:22` |
 | `slipkit.jerrytech.me` | `http://slipkit.slipkit.svc:80` |
+| `opencourt.jerrytech.me` | `http://opencourt.opencourt.svc:80` |
 
 Public hostname rules are configured in Cloudflare Zero Trust dashboard, not in this repo.
 

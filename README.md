@@ -22,6 +22,7 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 .
 ├── apps/
 │   ├── _registry.yaml            # app → namespace / release name map
+│   ├── opencourt/values.yaml
 │   ├── popofinder/values.yaml
 │   └── slipkit/values.yaml
 ├── bootstrap/                    # cluster infra, applied manually (each has a README)
@@ -45,7 +46,7 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 
 ## CI/CD Flow
 
-1. App repo (popofinder/slipkit) CI builds & pushes an image tagged with the commit SHA.
+1. App repo (popofinder/slipkit/opencourt) CI builds & pushes an image tagged with the commit SHA.
 2. CI generates a **GitHub App token** and sends a `repository_dispatch` (type `deploy-app`, payload `{app, tag}`) to this repo.
 3. `deploy-app.yaml`:
    - **commit-tag** (GitHub-hosted): validate against the allowlist → bump `apps/<app>/values.yaml` image tag with the built-in `GITHUB_TOKEN` → commit & push.

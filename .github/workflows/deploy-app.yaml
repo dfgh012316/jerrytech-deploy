@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       app:
-        description: 'app 名（popofinder / slipkit）'
+        description: 'app 名（popofinder / slipkit / opencourt）'
         required: true
         type: string
       tag:
@@ -42,8 +42,8 @@ jobs:
           TAG: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.tag || inputs.tag }}
         run: |
           case "$APP" in
-            popofinder|slipkit) : ;;
-            *) echo "::error::app 不在 allowlist（popofinder / slipkit）"; exit 1 ;;
+            popofinder|slipkit|opencourt) : ;;
+            *) echo "::error::app 不在 allowlist（popofinder / slipkit / opencourt）"; exit 1 ;;
           esac
           # 空值 = 不改 tag；其餘必須符合 Docker tag 語法（整串比對，換行也會被擋）
           if [ -n "$TAG" ] && ! [[ "$TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then

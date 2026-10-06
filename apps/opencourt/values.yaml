@@ -1,4 +1,4 @@
-# 網開一面（opencourt）：無 DB、無 secret，上游資料只存在記憶體。
+# 網開一面（opencourt）：無 DB，上游資料只存在記憶體；Secret opencourt 放 LINE 憑證（LINE_MESSAGE_CHANNEL_SECRET、LINE_MESSAGE_CHANNEL_ACCESS_TOKEN），手動建立。
 imagePullSecrets:
   - name: ghcr-pull
 image:
@@ -15,4 +15,4 @@ resources:
 environment: "production"
 commonConfigMapName: ""
 secret:
-  enabled: false
+  enabled: true

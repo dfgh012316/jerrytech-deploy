@@ -13,6 +13,10 @@ resources:
     cpu: 50m
     memory: 32Mi
 environment: "production"
+env:
+  # 卡片按鈕開的網址：網開一面 MINI App（LIFF ID 2011903357-xLZtwPYK，endpoint https://opencourt.jerrytech.me/）。
+  - name: PUBLIC_URL
+    value: "https://miniapp.line.me/2011903357-xLZtwPYK"
 commonConfigMapName: ""
 secret:
   enabled: true

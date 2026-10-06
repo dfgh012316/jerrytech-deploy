@@ -3,4 +3,4 @@ name: actions-runner
 description: In-cluster GitHub Actions self-hosted runner for jerrytech-deploy (push-based deploy)
 type: application
 version: 0.1.1
-appVersion: "2.337.0"
+appVersion: "2.338.0"

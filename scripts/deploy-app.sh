@@ -4,6 +4,9 @@
 #
 #   ./scripts/deploy-app.sh <app>              # 真的部署
 #   ./scripts/deploy-app.sh <app> --dry-run    # 只渲染比對，不動 cluster
+#
+# namespace 必須事先手動建立（連同該 ns 的 secret／ghcr-pull）。不用 --create-namespace：Helm 4 以
+# server-side apply 建 namespace，需要 namespaces 的 patch 權限，in-cluster runner 沒有。
 set -euo pipefail
 
 APP="${1:?usage: deploy-app.sh <app> [--dry-run]}"
@@ -24,7 +27,6 @@ echo "==> deploy app=${APP} release=${RELEASE} ns=${NS} ${MODE}"
 
 ARGS=(upgrade --install "$RELEASE" "${ROOT}/charts/app"
   --namespace "$NS"
-  --create-namespace
   --values "$VALUES"
   --history-max 5)
 

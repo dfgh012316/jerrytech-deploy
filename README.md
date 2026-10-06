@@ -111,4 +111,5 @@ Applied manually (see per-component READMEs):
 
 - **Release**: app repo push → fully automatic.
 - **Manual redeploy**: Actions → *Deploy app* → `workflow_dispatch` (app + tag).
+- **New app**: create its namespace (plus the app Secret / `ghcr-pull` it needs) with `kubectl` before the first deploy. `deploy-app.sh` does not pass `--create-namespace`: Helm 4 creates the namespace via server-side apply, which needs `patch` on namespaces, and the runner's ClusterRole doesn't grant it.
 - **Config-only change**: edit `apps/<app>/values.yaml`, push to `main`, then run *Deploy app* with the tag left empty (`gh workflow run deploy-app.yaml -f app=<app>`); helm re-applies the current values. Don't run `scripts/deploy-app.sh` from the Pi host: the checkout there is stale, while CI checks out the latest `main` on every run.

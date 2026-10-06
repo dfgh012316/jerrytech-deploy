@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "actions-runner.labels" . | nindent 4 }}
 rules:
-  # 建立/查詢 namespace（helm --create-namespace / deploy-app.sh）
+  # 查詢 namespace。deploy-app.sh 不建 namespace（見其檔頭）；create 目前只有 runner-selftest 在檢查
   - apiGroups: [""]
     resources: [namespaces]
     verbs: [get, list, watch, create]

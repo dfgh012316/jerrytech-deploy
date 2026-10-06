@@ -1,4 +1,4 @@
-# 網開一面（opencourt）：群組常去場地存在共用 PostgreSQL（db opencourt，role opencourt_app）；Secret opencourt 放 LINE 憑證（LINE_MESSAGE_CHANNEL_SECRET、LINE_MESSAGE_CHANNEL_ACCESS_TOKEN）與 DATABASE_URL，手動建立。
+# 網開一面（opencourt）：群組與個人的常去場地存在共用 PostgreSQL（db opencourt，role opencourt_app）；Secret opencourt 放 LINE 憑證（LINE_MESSAGE_CHANNEL_SECRET、LINE_MESSAGE_CHANNEL_ACCESS_TOKEN）與 DATABASE_URL，手動建立。
 imagePullSecrets:
   - name: ghcr-pull
 image:
@@ -17,6 +17,9 @@ env:
   # 卡片按鈕開的網址：網開一面 MINI App（LIFF ID 2011903357-xLZtwPYK，endpoint https://opencourt.jerrytech.me/）。
   - name: PUBLIC_URL
     value: "https://miniapp.line.me/2011903357-xLZtwPYK"
+  # 個人常去場地：前端以這個 LIFF ID 初始化 LIFF 取得 ID token，後端用它的 channel ID（- 前段）向 LINE 驗證。
+  - name: LIFF_ID
+    value: "2011903357-xLZtwPYK"
 commonConfigMapName: ""
 secret:
   enabled: true

@@ -4,7 +4,7 @@ imagePullSecrets:
 image:
   repository: "ghcr.io/dfgh012316/opencourt"
   # 由 deploy-app.yaml 在每次部署時改寫；第一次 CI 部署前不會被使用。
-  tag: "1d4b537"
+  tag: "3745dc6"
 resources:
   limits:
     cpu: 200m

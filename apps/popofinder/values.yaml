@@ -19,7 +19,9 @@ configMap:
     DB_NAME: "popo"
     DB_USER: "popo_app"
 cronjob:
-  enabled: true
+  # 2026-10-12 停用：上游 blog 自 2025-03 凍結，7–9 月三次皆 0 變動；DB 之後會做資料清理與官網校對，
+  # 列的(姓名+醫院)不再保證與 blog 一致，重跑會把 blog 那筆當新資料重複 INSERT。要重開先處理對帳鍵。
+  enabled: false
   name: "reconcile"
   # 每月 1 號 04:00 UTC (≈ 台北 12:00) 重爬 blog 對帳回填來源、補新通報
   schedule: "0 4 1 * *"

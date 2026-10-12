@@ -32,4 +32,3 @@ cronjob:
     - /crawl
     - -sources
     - femh
-    - -dry-run

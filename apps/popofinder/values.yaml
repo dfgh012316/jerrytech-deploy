@@ -1,6 +1,6 @@
 image:
   repository: "dfgh012316/popofinder"
-  tag: "bd67c36"
+  tag: "d16b745"
 resources:
   limits:
     cpu: 200m

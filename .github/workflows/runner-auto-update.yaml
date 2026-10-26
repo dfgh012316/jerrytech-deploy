@@ -43,7 +43,7 @@ jobs:
           HAVE="$(/home/runner/bin/Runner.Listener --version 2>/dev/null | grep -xE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
           echo "Dockerfile=${WANT} running=${HAVE}"
           helm version --short
-          kubectl version --client | head -n1
+          kubectl version --client
           if [ -z "$WANT" ] || [ "$WANT" != "$HAVE" ]; then
             echo "::error::runner 執行中是 ${HAVE:-unknown}，Dockerfile 是 ${WANT:-unknown}。bump 後沒換上？看 kubectl -n actions-runner get job -l app.kubernetes.io/name=runner-restart"
             exit 1

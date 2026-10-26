@@ -20,7 +20,9 @@ spec:
     spec:
       containers:
       - name: cloudflared
-        image: cloudflare/cloudflared:latest
+        # 釘版本：:latest 會讓每次重啟都重拉 image，也會默默升版
+        image: cloudflare/cloudflared:2026.10.4
+        imagePullPolicy: IfNotPresent
         args:
         - tunnel
         - --no-autoupdate
@@ -39,6 +41,7 @@ spec:
           httpGet:
             path: /ready
             port: 2000
-          failureThreshold: 1
+          # cloudflared 斷線會自己重連；給 60 秒緩衝，短暫斷網不要重啟它
+          failureThreshold: 6
           initialDelaySeconds: 10
           periodSeconds: 10

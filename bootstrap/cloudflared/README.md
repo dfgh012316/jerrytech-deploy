@@ -29,6 +29,8 @@ kubectl create secret generic tunnel-token \
 kubectl apply -f cloudflared.yaml
 ```
 
+The image tag is pinned. To upgrade cloudflared, change the tag in `cloudflared.yaml` and re-apply.
+
 ## Tunnel info
 
 - Tunnel name: `jerrytech-raspberrypi`

@@ -9,6 +9,7 @@ metadata:
     {{- include "helm-chart.labels" . | nindent 4 }}
 spec:
   schedule: {{ required "cronjob.schedule is required when cronjob.enabled" .Values.cronjob.schedule | quote }}
+  suspend: {{ .Values.cronjob.suspend | default false }}
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 300
   successfulJobsHistoryLimit: 3

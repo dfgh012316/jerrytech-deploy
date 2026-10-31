@@ -27,6 +27,10 @@ cronjob:
   # 資料清理後 (姓名+醫院) 不再與 blog 一致，重跑會重複 INSERT），這個位置改給 crawl。
   enabled: true
   name: "crawl"
+  # 2026-11-01 起暫停排程，需要時手動跑（popofinder open-decisions OD-10 2026-11-01 補註）：
+  #   kubectl -n popo create job crawl-manual-$(date +%Y%m%d) --from=cronjob/popofinder-crawl
+  # 恢復每月排程時把 suspend 改回 false。
+  suspend: true
   # 每月 1 號 19:00 UTC = 台北 2 號 03:00（醫院網站離峰）
   schedule: "0 19 1 * *"
   command:

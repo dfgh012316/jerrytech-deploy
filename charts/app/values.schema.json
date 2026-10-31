@@ -97,6 +97,7 @@
         "enabled": { "type": "boolean" },
         "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
         "schedule": { "type": "string" },
+        "suspend": { "type": "boolean" },
         "command": { "type": "array", "items": { "type": "string" } },
         "backoffLimit": { "type": "integer", "minimum": 0 }
       }

@@ -109,6 +109,9 @@ cronjob:
   name: "job"
   # Cron schedule (cluster default timezone = UTC). Required when enabled.
   schedule: ""
+  # true keeps the CronJob but stops scheduling it; run it by hand with
+  # `kubectl create job <name> --from=cronjob/<fullname>-<name>`.
+  suspend: false
   # Container command (e.g. ["/reconcile"]).
   command: []
   backoffLimit: 1

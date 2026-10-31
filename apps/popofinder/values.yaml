@@ -19,9 +19,11 @@ configMap:
     DB_NAME: "popo"
     DB_USER: "popo_app"
 cronjob:
-  # 醫院官網爬蟲（popofinder docs/open-decisions.md OD-7、OD-10）：亞東 femh、雙和 shh、馬偕 mmh、國泰 cgh、長庚 cgmh。
+  # 醫院官網爬蟲（popofinder docs/open-decisions.md OD-7、OD-10）：亞東 femh、雙和 shh、馬偕 mmh、國泰 cgh、
+  # 高醫 kmuh（中和、岡山）、小港 kmsh、蒔美牙醫 smile、長庚 cgmh。
   # 各來源依序爬、各自寫入（某來源任一頁失敗只跳過該來源，job 最後失敗）。
-  # 同一 host 每秒最多 1 個請求，前四家約 50–60 分鐘，長庚另約 5–6 小時（約 3,500 個個人頁、每頁回應約 2 秒，
+  # 同一 host 每秒最多 1 個請求，前四家約 50–60 分鐘，高醫約 25 分鐘、小港約 5 分鐘、蒔美約 1 分鐘，
+  # 長庚排最後，另約 5–6 小時（約 3,500 個個人頁、每頁回應約 2 秒，
   # 加上穩定回 500 的頁面重試）；失敗會重試 1 次（chart 的 backoffLimit 預設），整輪再爬一次。
   # chart 只支援一個 CronJob：原本的 reconcile 已於 2026-10-12 停用（上游 blog 自 2025-03 凍結；
   # 資料清理後 (姓名+醫院) 不再與 blog 一致，重跑會重複 INSERT），這個位置改給 crawl。
@@ -36,4 +38,4 @@ cronjob:
   command:
     - /crawl
     - -sources
-    - femh,shh,mmh,cgh,cgmh
+    - femh,shh,mmh,cgh,kmuh,kmsh,smile,cgmh

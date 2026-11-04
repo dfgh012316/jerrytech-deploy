@@ -1,0 +1,110 @@
+# 共用 PostgreSQL 每天備份到 Cloudflare R2：每個業務 db 一份 pg_dump（custom format，已壓縮）＋ roles（globals）。
+# R2 上的路徑：<bucket>/postgres/<UTC 日期>/<db>.dump、globals.sql；保留 30 天。
+# 需要 Secret r2-backup（ns shared）：R2_ACCOUNT_ID、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY、R2_BUCKET。建立與還原步驟見 README。
+# 合併到 main 後由 .github/workflows/postgres-backup.yaml 自動 apply，不要手動改叢集上的物件。
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: shared
+spec:
+  # timeZone 一定要寫：不寫時 k3s 依 Pi 主機的時區（Asia/Taipei）解讀 schedule，不是 UTC。
+  timeZone: Asia/Taipei
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: postgres-backup
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999 # postgres image 的 postgres 使用者；rclone 也以非 root 執行
+            runAsGroup: 999
+            fsGroup: 999
+          initContainers:
+            # 先在 pod 內 dump 完（emptyDir），再上傳；dump 失敗就不上傳。
+            - name: dump
+              image: postgres:18.6-bookworm
+              env:
+                - name: PGHOST
+                  value: postgres.shared.svc
+                - name: PGUSER
+                  value: postgres
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secrets
+                      key: postgres-password
+              command: ["bash", "-ceu"]
+              args:
+                - |
+                  dbs=$(psql -qAt -d postgres -c "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname <> 'postgres' ORDER BY 1")
+                  for db in $dbs; do
+                    pg_dump -Fc -d "$db" -f "/backup/$db.dump"
+                    echo "dumped $db $(du -h "/backup/$db.dump" | cut -f1)"
+                  done
+                  # roles 與權限（含密碼雜湊，bucket 必須是 private）
+                  pg_dumpall --globals-only -f /backup/globals.sql
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 500m, memory: 256Mi }
+              volumeMounts:
+                - { name: backup, mountPath: /backup }
+          containers:
+            - name: upload
+              image: rclone/rclone:1.68.2
+              env:
+                - name: R2_ACCOUNT_ID
+                  valueFrom: { secretKeyRef: { name: r2-backup, key: R2_ACCOUNT_ID } }
+                - name: R2_BUCKET
+                  valueFrom: { secretKeyRef: { name: r2-backup, key: R2_BUCKET } }
+                - name: RCLONE_CONFIG_R2_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_R2_PROVIDER
+                  value: Cloudflare
+                - name: RCLONE_CONFIG_R2_ENDPOINT
+                  value: https://$(R2_ACCOUNT_ID).r2.cloudflarestorage.com
+                - name: RCLONE_CONFIG_R2_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: r2-backup, key: R2_ACCESS_KEY_ID } }
+                - name: RCLONE_CONFIG_R2_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: r2-backup, key: R2_SECRET_ACCESS_KEY } }
+                # R2 token 只給單一 bucket 的物件權限，不能檢查或建立 bucket。
+                - name: RCLONE_S3_NO_CHECK_BUCKET
+                  value: "true"
+                - name: HOME
+                  value: /tmp
+              command: ["sh", "-ceu"]
+              args:
+                - |
+                  day=$(date -u +%F)
+                  rclone copy /backup "r2:$R2_BUCKET/postgres/$day"
+                  rclone lsl "r2:$R2_BUCKET/postgres/$day"
+                  rclone delete "r2:$R2_BUCKET/postgres" --min-age 30d
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests: { cpu: 50m, memory: 32Mi }
+                limits: { cpu: 500m, memory: 128Mi }
+              volumeMounts:
+                - { name: backup, mountPath: /backup, readOnly: true }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - { name: backup, emptyDir: {} }
+            - { name: tmp, emptyDir: {} }

@@ -25,12 +25,13 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 │   ├── opencourt/values.yaml
 │   ├── popofinder/values.yaml
 │   └── slipkit/values.yaml
-├── bootstrap/                    # cluster infra, applied manually (each has a README)
+├── bootstrap/                    # cluster infra, applied manually unless noted (each has a README)
 │   ├── actions-runner/           # in-cluster runner: image/ + chart/
 │   ├── cloudflared/
 │   ├── common-config/
 │   ├── monitoring/               # minimal Prometheus + preserved full-stack values
-│   └── postgres/
+│   ├── postgres/
+│   └── postgres-backup/          # daily pg_dump → Cloudflare R2; applied by postgres-backup.yaml
 ├── charts/app/                   # generic Helm chart for all services
 ├── scripts/
 │   ├── deploy-app.sh             # helm upgrade wrapper (shared by local & CI)
@@ -41,7 +42,8 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
     ├── chart-ci.yaml             # PR gate: chart-check.sh + Chart.yaml version bump check
     ├── build-runner-image.yaml   # build the arm64 runner image → GHCR (push / manual / workflow_call)
     ├── runner-auto-update.yaml   # daily: bump actions-runner base image → build → restart the runner
-    └── runner-selftest.yaml      # manual: runner tools / in-cluster kubectl & helm / RBAC check
+    ├── runner-selftest.yaml      # manual: runner tools / in-cluster kubectl & helm / RBAC check
+    └── postgres-backup.yaml      # push to main (or manual): kubectl apply bootstrap/postgres-backup
 ```
 
 ## CI/CD Flow
@@ -72,7 +74,7 @@ This is a **public** repo whose workflows can deploy through a **self-hosted run
 
 | Path | Guard |
 |------|-------|
-| Existing workflows | Self-hosted jobs only run on `repository_dispatch`, `workflow_dispatch` and `schedule`. Both dispatch events require a token with write access to this repo (app repos send a GitHub App token); `schedule` always runs the default-branch version. |
+| Existing workflows | Self-hosted jobs only run on `repository_dispatch`, `workflow_dispatch`, `schedule` and `push` to `main` (`postgres-backup.yaml`). Both dispatch events require a token with write access to this repo (app repos send a GitHub App token); `schedule` always runs the default-branch version, and pushing to `main` needs write access too. |
 | Fork pull requests | PR CI (`chart-ci.yaml`) runs on GitHub-hosted runners. A fork PR could still *add* a workflow targeting `[self-hosted, pi, k3s]`, so runs from **all** outside contributors need manual approval (fork PR approval policy: `all_external_contributors`). Rule: never approve a run for a fork PR that touches `.github/workflows/`. |
 | Workflow inputs | `app` / `tag` from dispatch payloads and manual inputs go through `env:`, never expanded inside `run:`. `app` must be on the allowlist and `tag` must match the Docker tag grammar before anything uses them. |
 
@@ -100,12 +102,13 @@ This is a **public** repo whose workflows can deploy through a **self-hosted run
 
 ## Bootstrap
 
-Applied manually (see per-component READMEs):
+Applied manually unless noted (see per-component READMEs):
 - [actions-runner](bootstrap/actions-runner/README.md) — in-cluster self-hosted runner
 - [Cloudflare Tunnel](bootstrap/cloudflared/README.md)
 - [common-config](bootstrap/common-config/README.md)
 - [monitoring](bootstrap/monitoring/README.md) — minimal Prometheus (metrics history, no Grafana)
 - [postgres](bootstrap/postgres/README.md)
+- [postgres-backup](bootstrap/postgres-backup/README.md) — daily backup to Cloudflare R2. `postgres-backup.yaml` applies the CronJob on every push to `main` that changes it; the `r2-backup` Secret is created manually.
 
 ## Day-2 Operations
 

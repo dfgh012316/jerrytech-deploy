@@ -1,0 +1,28 @@
+name: Apply postgres-backup
+
+# bootstrap/postgres-backup/backup.yaml（共用 PostgreSQL 每日備份的 CronJob）進 main 就由 in-cluster runner apply。
+# 只管 CronJob 本身：它用到的 Secret r2-backup、postgres-secrets 仍手動建立（見 bootstrap/postgres-backup/README.md）。
+# 從 git 刪掉 manifest 不會刪掉叢集上的 CronJob，要手動 kubectl delete。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bootstrap/postgres-backup/backup.yaml'
+      - '.github/workflows/postgres-backup.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: [self-hosted, pi, k3s]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false   # 常駐 runner：不把 token 留在 _work 的 .git/config
+
+      - name: kubectl apply
+        run: |
+          kubectl -n shared apply -f bootstrap/postgres-backup/backup.yaml
+          kubectl -n shared get cronjob postgres-backup

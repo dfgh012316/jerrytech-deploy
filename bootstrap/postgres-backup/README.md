@@ -1,8 +1,11 @@
 # Postgres backup
 
 每天把共用 PostgreSQL（ns `shared`）的每個業務 db 用 `pg_dump -Fc` 備份到 Cloudflare R2，連同 roles（`pg_dumpall --globals-only`）。
-R2 路徑 `<bucket>/postgres/<UTC 日期>/<db>.dump` 與 `globals.sql`，保留 30 天。台北 03:00 執行，在各 app 的每日排程之前。
-不在 deploy pipeline 裡，跟 `bootstrap/postgres` 一樣手動 apply。
+R2 路徑 `<bucket>/postgres/<UTC 日期>/<db>.dump` 與 `globals.sql`，保留 30 天。每天台北 03:00 執行（`timeZone: Asia/Taipei`），
+所以檔案放在前一天的 UTC 日期目錄。
+
+CronJob 由 `.github/workflows/postgres-backup.yaml` 管：`backup.yaml` 合併到 main 就會 apply，叢集重建後要重套時跑
+`gh workflow run postgres-backup.yaml`。Secret 不在 git 裡，照下面手動建。
 
 ## 第一次設定
 
@@ -19,13 +22,12 @@ R2 路徑 `<bucket>/postgres/<UTC 日期>/<db>.dump` 與 `globals.sql`，保留 
    **bucket 名稱打錯時 R2 回 403 AccessDenied，不是 NoSuchBucket**（只限單一 bucket 的 token 不透露其他 bucket 存不存在）——
    憑證驗證都過、卻每個操作都被拒，先對 bucket 名稱。
 
-4. 建 Secret（只取四個值，經 stdin 傳到 Pi，不上命令列）並 apply：
+4. 建 Secret（只取四個值，經 stdin 傳到 Pi，不上命令列）。CronJob 不用手動 apply（見上）：
 
    ```sh
    SSH=(ssh -o ProxyCommand='cloudflared access ssh --hostname %h' dfgh012316@ssh.jerrytech.me)
    grep -E '^(R2_ACCOUNT_ID|R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_BUCKET)=' ~/.config/jerrytech/r2-backup.env \
      | "${SSH[@]}" 'sudo k3s kubectl --context default create secret generic r2-backup -n shared --from-env-file=/dev/stdin'
-   "${SSH[@]}" 'sudo k3s kubectl --context default apply -f -' < bootstrap/postgres-backup/backup.yaml
    ```
 
 5. 手動跑一次確認：`kubectl --context default create job -n shared backup-test --from=cronjob/postgres-backup`，看 `kubectl --context default logs -n shared job/backup-test -c dump` 與 `-c upload`。

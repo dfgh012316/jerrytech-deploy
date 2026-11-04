@@ -12,18 +12,23 @@ R2 路徑 `<bucket>/postgres/<UTC 日期>/<db>.dump` 與 `globals.sql`，保留 
 
    ```sh
    install -m 600 /dev/null ~/.config/jerrytech/r2-backup.env
-   # 內容（四行）：R2_ACCOUNT_ID=…、R2_ACCESS_KEY_ID=…、R2_SECRET_ACCESS_KEY=…、R2_BUCKET=…
+   # 需要四行：R2_ACCOUNT_ID=…、R2_ACCESS_KEY_ID=…、R2_SECRET_ACCESS_KEY=…、R2_BUCKET=…
+   # Cloudflare 給的其他值（API token、S3 endpoint）可以一起存，下一步只取這四個進叢集。
    ```
 
-4. 建 Secret（值經 stdin 傳到 Pi，不上命令列）並 apply：
+   **bucket 名稱打錯時 R2 回 403 AccessDenied，不是 NoSuchBucket**（只限單一 bucket 的 token 不透露其他 bucket 存不存在）——
+   憑證驗證都過、卻每個操作都被拒，先對 bucket 名稱。
+
+4. 建 Secret（只取四個值，經 stdin 傳到 Pi，不上命令列）並 apply：
 
    ```sh
-   ssh -o ProxyCommand='cloudflared access ssh --hostname %h' dfgh012316@ssh.jerrytech.me \
-     'sudo k3s kubectl create secret generic r2-backup -n shared --from-env-file=/dev/stdin' < ~/.config/jerrytech/r2-backup.env
-   sudo k3s kubectl apply -f bootstrap/postgres-backup/backup.yaml   # 在 Pi 上，或經同一條 ssh
+   SSH=(ssh -o ProxyCommand='cloudflared access ssh --hostname %h' dfgh012316@ssh.jerrytech.me)
+   grep -E '^(R2_ACCOUNT_ID|R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_BUCKET)=' ~/.config/jerrytech/r2-backup.env \
+     | "${SSH[@]}" 'sudo k3s kubectl --context default create secret generic r2-backup -n shared --from-env-file=/dev/stdin'
+   "${SSH[@]}" 'sudo k3s kubectl --context default apply -f -' < bootstrap/postgres-backup/backup.yaml
    ```
 
-5. 手動跑一次確認：`kubectl create job -n shared backup-test --from=cronjob/postgres-backup`，看 `kubectl logs -n shared job/backup-test -c dump` 與 `-c upload`。
+5. 手動跑一次確認：`kubectl --context default create job -n shared backup-test --from=cronjob/postgres-backup`，看 `kubectl --context default logs -n shared job/backup-test -c dump` 與 `-c upload`。
 
 ## 還原
 

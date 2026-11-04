@@ -1,0 +1,35 @@
+# OpenLawMaker（立委質詢摘要、議題、搜尋）：資料存共用 PostgreSQL（db openlawmaker，role openlawmaker_app）。
+# Secret openlawmaker 手動建立：DATABASE_URL、OPENAI_API_KEY（摘要用，使用者自己的 OpenAI 帳號）。
+# 對外 openlawmaker.jerrytech.me → http://openlawmaker.openlawmaker.svc:80（Cloudflare Tunnel 後台）。
+imagePullSecrets:
+  - name: ghcr-pull
+image:
+  repository: "ghcr.io/dfgh012316/openlawmaker"
+  # 由 deploy-app.yaml 在每次部署時改寫。
+  tag: "b631a8c"
+# Deployment 與 CronJob 共用：server 只用幾十 MB；每日排程讀整份 IVOD 列表（約 40MB 原始 JSON）時較高。
+resources:
+  limits:
+    cpu: 500m
+    memory: 384Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+environment: "production"
+env:
+  # 獻金與標案區塊：律師看過前不開（不設 SHOW_MONEY）。
+  # 每天送出發言摘要的估價上限（美元）；每天新發言約 25 段、約 $0.25。
+  - name: DAILY_MAX_USD
+    value: "1"
+commonConfigMapName: ""
+secret:
+  enabled: true
+migrations:
+  enabled: true
+cronjob:
+  enabled: true
+  name: daily
+  # UTC 20:00 = 台北 04:00：抓前一天的發言、會議、議案、表決，送出新發言的摘要。
+  schedule: "0 20 * * *"
+  command: ["/daily"]
+  # 第一次要補約 2 萬段逐字稿（約 15 小時）。失敗會依 chart 預設重試 1 次；各步驟是增量的，重跑只補沒抓到的。

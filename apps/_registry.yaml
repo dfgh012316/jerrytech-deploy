@@ -11,3 +11,6 @@ apps:
   opencourt:
     namespace: opencourt
     releaseName: opencourt
+  openlawmaker:
+    namespace: openlawmaker
+    releaseName: openlawmaker

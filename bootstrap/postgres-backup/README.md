@@ -30,6 +30,11 @@ R2 路徑 `<bucket>/postgres/<UTC 日期>/<db>.dump` 與 `globals.sql`，保留 
 
 5. 手動跑一次確認：`kubectl --context default create job -n shared backup-test --from=cronjob/postgres-backup`，看 `kubectl --context default logs -n shared job/backup-test -c dump` 與 `-c upload`。
 
+備份以超級使用者 `postgres` 經 service 連線（走 scram 密碼驗證；pod 內本機連線是 trust，不會用到密碼），密碼取自 `postgres-secrets`。
+這個 Secret 只在第一次初始化資料目錄時寫進資料庫；之後還原 globals（例如升級 major 版本）會帶入來源伺服器的密碼雜湊，兩邊就對不上，
+備份的 dump 步驟會 `password authentication failed`。2026-11-04 就是這樣（PG18 遷移造成），當時在 Pi 上產生新密碼、
+經本機 socket `ALTER ROLE postgres PASSWORD` 後寫回 Secret。
+
 ## 還原
 
 ```sh

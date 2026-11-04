@@ -45,6 +45,10 @@ the app label but cannot write. Separately verify no active Jobs or DB sessions.
    The globals dump contains password hashes and must be treated as a secret.
 5. Restore globals with `psql -X -v ON_ERROR_STOP=1`; omit only the existing
    `CREATE ROLE postgres;` statement, retaining its `ALTER ROLE` settings.
+   That `ALTER ROLE` carries the source server's password hash and replaces the
+   password initdb set from `postgres-secrets`; reset it from the Secret afterwards
+   (the backup CronJob authenticates with it — this was missed in 2026-09 and fixed
+   on 2026-11-04, see `bootstrap/postgres-backup/README.md`).
    Restore each database with `pg_restore --exit-on-error --create -d postgres`.
    Dump clients must not be older than the source server; the target-major client
    is preferred. PG15 logical dumps can be restored by PG18.

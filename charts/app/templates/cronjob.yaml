@@ -16,7 +16,8 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      backoffLimit: {{ .Values.cronjob.backoffLimit | default 1 }}
+      {{- /* Not `| default 1`: default treats 0 as empty, so backoffLimit: 0 would render as 1. The chart's values.yaml sets 1. */}}
+      backoffLimit: {{ .Values.cronjob.backoffLimit }}
       template:
         metadata:
           labels:
@@ -24,7 +25,7 @@ spec:
             app: {{ $jobName }}
         spec:
           automountServiceAccountToken: false
-          restartPolicy: OnFailure
+          restartPolicy: {{ .Values.cronjob.restartPolicy }}
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}

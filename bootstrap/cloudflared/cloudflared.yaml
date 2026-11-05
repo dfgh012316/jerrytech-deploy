@@ -26,6 +26,10 @@ spec:
         args:
         - tunnel
         - --no-autoupdate
+        # 用 HTTP/2（TCP）而不是預設的 QUIC（UDP）：Pi 主機的 UDP 緩衝上限只有 208 KB，cloudflared 啟動時警告
+        # 「wanted 7168 kiB, got 416 kiB」；2026-11-05 量到經 tunnel 往外只有約 60 KB/s（Wi-Fi 正常，-47 dBm、65 Mbit/s）。
+        - --protocol
+        - http2
         - --metrics
         - 0.0.0.0:2000
         - run
@@ -37,6 +41,13 @@ spec:
             secretKeyRef:
               name: tunnel-token
               key: token
+        # 連上 Cloudflare 才算就緒（/ready 有連線時回 200）：rolling update 時新的連不上，舊的就不會被收掉。
+        # cloudflared 前面沒有 Service，就緒與否不影響流量，只影響更新。
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 2000
+          periodSeconds: 5
         livenessProbe:
           httpGet:
             path: /ready

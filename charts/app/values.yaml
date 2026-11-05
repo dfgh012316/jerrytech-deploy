@@ -114,7 +114,10 @@ cronjob:
   suspend: false
   # Container command (e.g. ["/reconcile"]).
   command: []
+  # Retries after a failure (0 = none: the next scheduled run picks up what failed).
   backoffLimit: 1
+  # OnFailure restarts the container in the same Pod; Never keeps the failed Pod so its log can be read.
+  restartPolicy: OnFailure
 
 # -- Additional Pod configuration
 podAnnotations: {}

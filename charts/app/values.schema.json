@@ -99,7 +99,8 @@
         "schedule": { "type": "string" },
         "suspend": { "type": "boolean" },
         "command": { "type": "array", "items": { "type": "string" } },
-        "backoffLimit": { "type": "integer", "minimum": 0 }
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "restartPolicy": { "enum": ["OnFailure", "Never"] }
       }
     },
     "podAnnotations": { "$ref": "#/definitions/stringMap" },

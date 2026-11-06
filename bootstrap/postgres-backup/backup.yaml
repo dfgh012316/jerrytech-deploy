@@ -18,7 +18,8 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 1
-      activeDeadlineSeconds: 3600
+      # dump＋上傳的總時限。Pi 上傳只有約 0.3 MB/s（2026-11-06：570MB 花 25 分鐘），1 小時只容得下約 1.1GB；3 小時約 3GB。
+      activeDeadlineSeconds: 10800
       template:
         metadata:
           labels:

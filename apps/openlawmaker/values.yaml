@@ -6,7 +6,7 @@ imagePullSecrets:
 image:
   repository: "ghcr.io/dfgh012316/openlawmaker"
   # 由 deploy-app.yaml 在每次部署時改寫。
-  tag: "91702c7"
+  tag: "908cd21"
 # Deployment 與 CronJob 共用：server 只用幾十 MB；每日排程讀整份 IVOD 列表（約 40MB 原始 JSON）時較高。
 resources:
   limits:

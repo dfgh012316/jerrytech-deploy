@@ -1,5 +1,5 @@
 # OpenLawMaker（立委質詢摘要、議題、搜尋）：資料存共用 PostgreSQL（db openlawmaker，role openlawmaker_app）。
-# Secret openlawmaker 手動建立：DATABASE_URL、OPENAI_API_KEY（摘要用，使用者自己的 OpenAI 帳號）。
+# Secret openlawmaker 手動建立：DATABASE_URL、OPENAI_API_KEY（摘要用，使用者自己的 OpenAI 帳號）、DISCORD_WEBHOOK_URL（每一輪排程跑完的通知，openlawmaker cmd/daily）。
 # 對外 openlawmaker.jerrytech.me → http://openlawmaker.openlawmaker.svc:80（Cloudflare Tunnel 後台）。
 imagePullSecrets:
   - name: ghcr-pull

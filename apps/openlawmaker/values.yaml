@@ -6,7 +6,7 @@ imagePullSecrets:
 image:
   repository: "ghcr.io/dfgh012316/openlawmaker"
   # 由 deploy-app.yaml 在每次部署時改寫。
-  tag: "77ce8d4"
+  tag: "03019f2"
 # Deployment 與 CronJob 共用。server 平常約 80Mi（委員照片、字型常駐），畫分享圖時更高；每日排程讀整份 IVOD 列表（約 40MB 原始 JSON）時較高。
 # limits 2026-11-08 從 500m／384Mi 放寬：沒命中 Cloudflare 快取的請求每秒約 0.3 個時，500m 在有在跑的 CFS 週期裡 88% 被 throttle，
 # 分享圖一度要等 27 秒，記憶體尖峰 294Mi。Pi 4 核平常只用約 0.3 核、可用記憶體約 5.8GB。

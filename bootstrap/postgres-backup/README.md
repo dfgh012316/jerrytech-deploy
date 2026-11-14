@@ -1,8 +1,8 @@
 # Postgres backup
 
 每天把共用 PostgreSQL（ns `shared`）的每個業務 db 用 `pg_dump -Fc` 備份到 Cloudflare R2，連同 roles（`pg_dumpall --globals-only`）。
-R2 路徑 `<bucket>/postgres/<UTC 日期>/<db>.dump` 與 `globals.sql`，保留 30 天。每天台北 03:00 執行（`timeZone: Asia/Taipei`），
-所以檔案放在前一天的 UTC 日期目錄。
+R2 路徑 `<bucket>/postgres/<UTC 時間戳>/<db>.dump` 與 `globals.sql`（例：`postgres/2026-11-14T190001Z/`），保留 7 天。
+每天台北 03:00 執行（`timeZone: Asia/Taipei`），所以時間戳是前一天的 UTC 日期。保留與防刪不在 CronJob 裡，見下方「保留期限與防刪」。
 
 CronJob 由 `.github/workflows/postgres-backup.yaml` 管：`backup.yaml` 合併到 main 就會 apply，叢集重建後要重套時跑
 `gh workflow run postgres-backup.yaml`。Secret 不在 git 裡，照下面手動建。
@@ -37,10 +37,26 @@ CronJob 由 `.github/workflows/postgres-backup.yaml` 管：`backup.yaml` 合併�
 備份的 dump 步驟會 `password authentication failed`。2026-11-04 就是這樣（PG18 遷移造成），當時在 Pi 上產生新密碼、
 經本機 socket `ALTER ROLE postgres PASSWORD` 後寫回 Secret。
 
+## 保留期限與防刪
+
+設定在 Cloudflare 後台（R2 → bucket → Settings），不在 git 裡：
+
+| 設定 | Prefix | 值 | 作用 |
+|---|---|---|---|
+| Bucket lock rule | `postgres/` | 保留 7 天 | 7 天內的物件任何 token 都刪不掉、也覆寫不了，包含既有的物件 |
+| Object lifecycle rule | `postgres/` | 7 天後刪除 | 取代原本 CronJob 裡的 `rclone delete`；R2 通常在到期後 24 小時內刪 |
+
+- Pi 上的 token 必須維持 **Object Read & Write、只限這個 bucket**。拿掉 lock rule 要能改 bucket 設定（Admin 權限）；
+  token 若給成 Admin，拿到 Pi 的人就能先拆鎖再刪。
+- lock 只擋刪除與覆寫，擋不住讀取：拿到 token 仍可下載備份（含 `globals.sql` 的密碼雜湊）。
+- 備份停掉（故障或被入侵）超過 7 天，lifecycle 會把最後幾份也刪掉，所以要盯「最新一份備份是多久前」。
+- 能登入 Cloudflare 帳號的人可以刪掉 lock rule，帳號本身要開 2FA。
+
 ## 還原
 
 ```sh
-rclone copy r2:<bucket>/postgres/<日期>/ ./restore/
+rclone lsf r2:<bucket>/postgres/                               # 列出可用的時間戳
+rclone copy r2:<bucket>/postgres/<時間戳>/ ./restore/
 psql -U postgres -f restore/globals.sql                      # roles（已存在的會報錯，可忽略）
 createdb -U postgres -O <owner> <db> && pg_restore -U postgres -d <db> restore/<db>.dump
 ```

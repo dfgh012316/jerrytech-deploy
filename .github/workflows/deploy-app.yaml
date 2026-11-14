@@ -7,6 +7,7 @@ name: Deploy app
 # job1 commit-tag：在 GitHub-hosted 上 bump apps/<app>/values.yaml 的 image.tag（內建 GITHUB_TOKEN）
 # job2 deploy    ：在 in-cluster self-hosted runner 上 helm upgrade（讀剛 push 的 commit），
 #                  有設定 cdn 的 app 再清 Cloudflare 快取＋預熱（scripts/cdn-refresh.sh）
+# job3 notify    ：在 GitHub-hosted 上把結果（含快取清了沒）發到 Discord（secret DISCORD_WEBHOOK_URL）
 on:
   repository_dispatch:
     types: [deploy-app]
@@ -32,6 +33,7 @@ jobs:
       contents: write
     outputs:
       app: ${{ steps.r.outputs.app }}
+      tag: ${{ steps.r.outputs.tag }}
       sha: ${{ steps.push.outputs.sha }}
     steps:
       # 外部輸入一律經 env 傳進 shell，不在 run: 裡直接展開 ${{ }}（避免 template injection）。
@@ -85,6 +87,9 @@ jobs:
   deploy:
     needs: commit-tag
     runs-on: [self-hosted, pi, k3s]
+    outputs:
+      cdn: ${{ steps.cdn.outputs.result }}       # none／no-token／purged；清除失敗時是空的
+      cdn_outcome: ${{ steps.cdn.outcome }}      # continue-on-error 下失敗仍是 failure（conclusion 才會變 success）
     steps:
       - name: Checkout（含剛 push 的 tag commit）
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -103,6 +108,7 @@ jobs:
       # 只有 _registry.yaml 裡有 cdn 的 app 會做；沒有 token 時只印警告。失敗不讓部署算失敗（服務已經換好），
       # 但 run 上看得到。
       - name: Refresh CDN（清 Cloudflare 快取＋預熱）
+        id: cdn
         continue-on-error: true
         env:
           APP: ${{ needs.commit-tag.outputs.app }}
@@ -119,3 +125,37 @@ jobs:
         run: |
           echo "### Deploy $APP 🚀" >> "$GITHUB_STEP_SUMMARY"
           echo "- commit: \`$SHA\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # 跑在 GitHub 的機器上，不是 Pi 上的 runner：commit-tag 失敗、或 runner 在部署中途掛掉時也照樣會發。
+  # app／tag 只用 commit-tag 驗證過的 output（驗證沒過時是空的）。
+  notify:
+    needs: [commit-tag, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          APP: ${{ needs.commit-tag.outputs.app }}
+          TAG: ${{ needs.commit-tag.outputs.tag }}
+          DEPLOY: ${{ needs.deploy.result }}
+          CDN: ${{ needs.deploy.outputs.cdn }}
+          CDN_OUTCOME: ${{ needs.deploy.outputs.cdn_outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -n "$TAG" ]; then ver="\`$TAG\`"; else ver='（沿用原本的 tag）'; fi
+          case "$DEPLOY" in
+            success)
+              case "$CDN_OUTCOME/$CDN" in
+                failure/*)  msg="⚠️ $APP 已上線 $ver，但清 Cloudflare 快取失敗：讀者可能還會看到舊的頁面一段時間" ;;
+                */no-token) msg="⚠️ $APP 已上線 $ver，但沒有 CLOUDFLARE_PURGE_TOKEN，Cloudflare 快取沒有清" ;;
+                */purged)   msg="✅ $APP 已上線 $ver，Cloudflare 快取已清除並預熱" ;;
+                *)          msg="✅ $APP 已上線 $ver" ;;
+              esac ;;
+            skipped) msg="🔴 部署沒有開始：commit-tag 失敗（app／tag 驗證沒過，或 push 被拒）" ;;
+            *)       msg="🔴 $APP 部署失敗（$DEPLOY）" ;;
+          esac
+          msg=$(printf '%s\n<%s>' "$msg" "$RUN_URL")
+          jq -n --arg c "$msg" '{content: $c, allowed_mentions: {parse: []}}' \
+            | curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$DISCORD_WEBHOOK_URL"

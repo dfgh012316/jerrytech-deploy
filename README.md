@@ -56,6 +56,7 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
    - **commit-tag** (GitHub-hosted): validate against the allowlist → bump `apps/<app>/values.yaml` image tag with the built-in `GITHUB_TOKEN` → commit & push.
    - **deploy** (in-cluster self-hosted runner): checkout that commit → `deploy-app.sh <app>` → `helm upgrade --install`.
      Apps with a `cdn` entry in `apps/_registry.yaml` (openlawmaker) then get `scripts/cdn-refresh.sh`: it purges their Cloudflare cache by hostname and warms the listed entry pages and APIs. It needs the `CLOUDFLARE_PURGE_TOKEN` Actions secret: a Cloudflare API token with Zone › Cache Purge and Zone › Zone › Read, limited to that zone. Without the secret the step only warns.
+   - **notify** (GitHub-hosted, always runs): posts the result to Discord through the `DISCORD_WEBHOOK_URL` Actions secret (the same webhook as the postgres backup check): deployed or failed, and for `cdn` apps whether the cache purge worked.
 4. Rollback = revert `values.yaml` and re-run deploy (or `helm rollback`).
 
 ## Key Design Decisions

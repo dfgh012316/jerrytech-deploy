@@ -5,7 +5,8 @@ name: Deploy app
 #   2) workflow_dispatch — 手動重部署 / 接管現有 release（可只 deploy 不改 tag）
 #
 # job1 commit-tag：在 GitHub-hosted 上 bump apps/<app>/values.yaml 的 image.tag（內建 GITHUB_TOKEN）
-# job2 deploy    ：在 in-cluster self-hosted runner 上 helm upgrade（讀剛 push 的 commit）
+# job2 deploy    ：在 in-cluster self-hosted runner 上 helm upgrade（讀剛 push 的 commit），
+#                  有設定 cdn 的 app 再清 Cloudflare 快取＋預熱（scripts/cdn-refresh.sh）
 on:
   repository_dispatch:
     types: [deploy-app]
@@ -97,6 +98,18 @@ jobs:
         run: |
           chmod +x scripts/deploy-app.sh
           ./scripts/deploy-app.sh "$APP"
+
+      # helm --wait 結束時新的 Pod 已經在服務：這時清掉 Cloudflare 上的舊頁面與舊 API 回應，再預熱幾個入口。
+      # 只有 _registry.yaml 裡有 cdn 的 app 會做；沒有 token 時只印警告。失敗不讓部署算失敗（服務已經換好），
+      # 但 run 上看得到。
+      - name: Refresh CDN（清 Cloudflare 快取＋預熱）
+        continue-on-error: true
+        env:
+          APP: ${{ needs.commit-tag.outputs.app }}
+          CLOUDFLARE_PURGE_TOKEN: ${{ secrets.CLOUDFLARE_PURGE_TOKEN }}
+        run: |
+          chmod +x scripts/cdn-refresh.sh
+          ./scripts/cdn-refresh.sh "$APP"
 
       - name: Summary
         if: always()

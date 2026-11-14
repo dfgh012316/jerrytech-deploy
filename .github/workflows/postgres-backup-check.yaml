@@ -1,0 +1,62 @@
+name: Check postgres backup
+
+# 每天檢查 R2 上最新的 postgres 備份（多久前、檔案齊不齊、大小有沒有暴跌），有問題就發 Discord。
+# 跑在 GitHub 的機器上，不是 Pi 上的 runner：Pi 掛掉或被入侵時，這個檢查照樣會發現「備份停了」。
+# 用只讀 token（Object Read only、只限備份 bucket），不是 Pi 上那把。需要的 secrets 見 bootstrap/postgres-backup/README.md。
+on:
+  schedule:
+    # UTC 23:30 = 台北 07:30。備份 03:00 開始，最晚 04:00 才起跑（startingDeadlineSeconds）、
+    # 再 3 小時內結束（activeDeadlineSeconds），所以 07:00 前一定跑完；GitHub 的排程本身也可能延遲。
+    - cron: '30 23 * * *'
+  workflow_dispatch:
+    inputs:
+      notify_ok:
+        description: '備份正常時也發一則 Discord（測試 webhook 用）'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_RO_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_RO_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      # 新版 AWS CLI 預設送的 checksum header，R2 不一定支援
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check latest backup
+        run: |
+          set -o pipefail
+          aws s3api list-objects-v2 --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" \
+              --prefix postgres/ --output json \
+            | python3 scripts/check-backup-freshness.py | tee report.txt
+
+      - name: Notify Discord (OK)
+        if: success() && github.event_name == 'workflow_dispatch' && inputs.notify_ok
+        run: |
+          msg=$(printf '🟢 Postgres 備份檢查正常\n```\n%s\n```' "$(head -c 1700 report.txt)")
+          jq -n --arg c "$msg" '{content: $c, allowed_mentions: {parse: []}}' \
+            | curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$DISCORD_WEBHOOK_URL"
+
+      - name: Notify Discord (problem)
+        if: failure()
+        run: |
+          report=$(head -c 1500 report.txt 2>/dev/null || true)
+          [ -n "$report" ] || report='沒有產生報告：多半是 R2 存取失敗（token 過期或權限不對），看 run log。'
+          msg=$(printf '🔴 Postgres 備份檢查失敗\n```\n%s\n```\n%s' "$report" "$RUN_URL")
+          jq -n --arg c "$msg" '{content: $c, allowed_mentions: {parse: []}}' \
+            | curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$DISCORD_WEBHOOK_URL"

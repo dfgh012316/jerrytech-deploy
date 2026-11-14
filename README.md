@@ -36,6 +36,7 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 ├── charts/app/                   # generic Helm chart for all services
 ├── scripts/
 │   ├── deploy-app.sh             # helm upgrade wrapper (shared by local & CI)
+│   ├── cdn-refresh.sh            # after deploy: purge the app's Cloudflare cache by hostname, then warm entry pages
 │   ├── chart-check.sh            # helm lint + template + kubeconform for every app (PR CI & local)
 │   └── adopt-helm-ownership.sh   # one-off: adopt existing resources into a release
 └── .github/workflows/
@@ -54,6 +55,7 @@ External traffic is routed through **Cloudflare Tunnel** (Zero Trust) — no Loa
 3. `deploy-app.yaml`:
    - **commit-tag** (GitHub-hosted): validate against the allowlist → bump `apps/<app>/values.yaml` image tag with the built-in `GITHUB_TOKEN` → commit & push.
    - **deploy** (in-cluster self-hosted runner): checkout that commit → `deploy-app.sh <app>` → `helm upgrade --install`.
+     Apps with a `cdn` entry in `apps/_registry.yaml` (openlawmaker) then get `scripts/cdn-refresh.sh`: it purges their Cloudflare cache by hostname and warms the listed entry pages and APIs. It needs the `CLOUDFLARE_PURGE_TOKEN` Actions secret: a Cloudflare API token with Zone › Cache Purge and Zone › Zone › Read, limited to that zone. Without the secret the step only warns.
 4. Rollback = revert `values.yaml` and re-run deploy (or `helm rollback`).
 
 ## Key Design Decisions

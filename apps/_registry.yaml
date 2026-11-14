@@ -14,3 +14,28 @@ apps:
   openlawmaker:
     namespace: openlawmaker
     releaseName: openlawmaker
+    # 部署完清 Cloudflare 快取再預熱（scripts/cdn-refresh.sh，deploy-app.yaml 的 Refresh CDN）。
+    cdn:
+      zone: openlawmaker.org
+      hosts: [openlawmaker.org]
+      # 讀者最常落地的入口頁，與每一頁都會打的 API（名冊、各類資料整理到哪一天）和搜尋框的索引
+      # （openlawmaker web/src/api.ts、finder.ts）；首頁引用的 JS／CSS 會另外一起抓。
+      warm:
+        - /
+        - /speeches
+        - /legislators
+        - /issues
+        - /votes
+        - /passed
+        - /api/home
+        - /api/overview
+        - /api/legislators
+        - /api/stats
+        - /api/issues
+        - /api/topics
+        - /api/laws
+        - /api/votes
+        - /api/learn
+        - /api/focus
+        - /api/agencies
+        - /geo/places.json

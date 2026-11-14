@@ -41,9 +41,11 @@ jobs:
       - name: Check latest backup
         run: |
           set -o pipefail
+          # 先寫進檔案：R2 存取失敗時這一步就停在這裡、不產生 report.txt，告警會說是存取失敗，
+          # 而不是把空輸出當成「沒有任何備份」。
           aws s3api list-objects-v2 --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" \
-              --prefix postgres/ --output json \
-            | python3 scripts/check-backup-freshness.py | tee report.txt
+              --prefix postgres/ --output json > listing.json
+          python3 scripts/check-backup-freshness.py < listing.json | tee report.txt
 
       - name: Notify Discord (OK)
         if: success() && github.event_name == 'workflow_dispatch' && inputs.notify_ok

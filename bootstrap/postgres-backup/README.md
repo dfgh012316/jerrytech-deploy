@@ -52,6 +52,21 @@ CronJob 由 `.github/workflows/postgres-backup.yaml` 管：`backup.yaml` 合併�
 - 備份停掉（故障或被入侵）超過 7 天，lifecycle 會把最後幾份也刪掉，所以要盯「最新一份備份是多久前」。
 - 能登入 Cloudflare 帳號的人可以刪掉 lock rule，帳號本身要開 2FA。
 
+## 備份檢查與告警
+
+`.github/workflows/postgres-backup-check.yaml` 每天台北 07:30 在 GitHub 的機器上（不是 Pi 上的 runner）列出 R2 的
+`postgres/`，最新一份超過 26 小時、缺 `globals.sql`、有 0 byte 的 dump、少了前一份有的檔案，或總大小不到前一份的一半，
+就發 Discord。跑在 Pi 之外，Pi 掛掉或被入侵時一樣會發現備份停了。手動跑（`gh workflow run postgres-backup-check.yaml`）
+預設正常時也會發一則，用來測 webhook。
+
+GitHub repo → Settings → Secrets and variables → Actions 要有：
+
+| Secret | 內容 |
+|---|---|
+| `R2_RO_ACCESS_KEY_ID`、`R2_RO_SECRET_ACCESS_KEY` | 另建一把 R2 token：**Object Read only**、只限備份 bucket。不要重用 Pi 那把（那把能寫） |
+| `R2_ACCOUNT_ID`、`R2_BUCKET` | 跟 Secret `r2-backup` 裡的一樣 |
+| `DISCORD_WEBHOOK_URL` | Discord 頻道 → 編輯頻道 → 整合 → Webhook |
+
 ## 還原
 
 ```sh

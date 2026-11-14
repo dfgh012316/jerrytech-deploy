@@ -6,6 +6,8 @@
 #   CLOUDFLARE_PURGE_TOKEN=… ./scripts/cdn-refresh.sh <app>
 #
 # 只處理 apps/_registry.yaml 裡有 cdn 的 app。沒有 CLOUDFLARE_PURGE_TOKEN 時印警告就結束（不讓部署失敗）。
+# 在 Actions 裡跑時把結果寫進 step output `result`（none／no-token／purged），deploy-app.yaml 的 Discord 通知用；
+# 清除失敗時 exit 1、不寫。
 # token：Cloudflare API token，權限 Zone › Cache Purge › Purge 與 Zone › Zone › Read，Zone Resources 只限那個 zone。
 # 依 hostname 清（cdn.hosts），不是整個 zone：同一個 zone 裡的其他網站不受影響（Cloudflare 2025-04 起所有方案都能用）。
 # 預熱只填到 runner 走到的那個 Cloudflare 機房（2026-11-14 量：runner Pod 走聖荷西 SJC，Pi 主機走新加坡 SIN；
@@ -16,13 +18,17 @@ APP="${1:?usage: cdn-refresh.sh <app>}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REGISTRY="${ROOT}/apps/_registry.yaml"
 
+report() { [ -z "${GITHUB_OUTPUT:-}" ] || echo "result=$1" >> "$GITHUB_OUTPUT"; }
+
 ZONE="$(yq e ".apps.${APP}.cdn.zone // \"\"" "$REGISTRY")"
 if [ -z "$ZONE" ]; then
   echo "${APP} 沒有設定 cdn，略過"
+  report none
   exit 0
 fi
 if [ -z "${CLOUDFLARE_PURGE_TOKEN:-}" ]; then
   echo "::warning::沒有 CLOUDFLARE_PURGE_TOKEN，${APP} 的 Cloudflare 快取沒有清（讀者可能還會看到舊的頁面一段時間）"
+  report no-token
   exit 0
 fi
 # 先接住 yq 輸出再切行：`mapfile < <(yq ...)` 不會傳遞 yq 的失敗（同 chart-check.sh）
@@ -52,6 +58,7 @@ if ! jq -e '.success' <<<"$RESULT" >/dev/null; then
   exit 1
 fi
 echo "==> 已清除 ${HOSTS[*]} 的 Cloudflare 快取"
+report purged
 
 # get：抓一次（帶 Accept-Encoding，和瀏覽器一樣拿壓縮的版本），印狀態碼、cf-cache-status 與機房（cf-ray 的結尾）。
 get() {

@@ -65,7 +65,7 @@ GitHub repo → Settings → Secrets and variables → Actions 要有：
 |---|---|
 | `R2_RO_ACCESS_KEY_ID`、`R2_RO_SECRET_ACCESS_KEY` | 另建一把 R2 token：**Object Read only**、只限備份 bucket。不要重用 Pi 那把（那把能寫） |
 | `R2_ACCOUNT_ID`、`R2_BUCKET` | 跟 Secret `r2-backup` 裡的一樣 |
-| `DISCORD_WEBHOOK_URL` | Discord 頻道 → 編輯頻道 → 整合 → Webhook |
+| `DISCORD_WEBHOOK_URL` | Discord 頻道 → 編輯頻道 → 整合 → Webhook。`deploy-app.yaml` 的部署通知也用這一個 |
 
 ## 還原
 

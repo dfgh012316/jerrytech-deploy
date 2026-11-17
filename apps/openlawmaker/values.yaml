@@ -24,9 +24,10 @@ env:
   - name: DAILY_MAX_USD
     value: "1"
   # 這個月的 LLM 花費（llm_spend）到這個數，summarize 會花錢的指令就不送（沒設是 MONTHLY_BUDGET_USD 的 3 倍，預設 30）。
-  # 2026-11 開發質詢段落與議題架構（openlawmaker #226），使用者同意這個月超過 30 美元：暫時調到 50，2026-12-01 拿掉這兩行改回預設。
+  # 2026-11 開發質詢段落與議題架構（openlawmaker #226），使用者同意這個月超過 30 美元：暫時調到 50；
+  # 11-17 使用者決定整屆的段落與議題歸類在 11 月一次跑完（估這個月合計約 62），再調到 75。2026-12-01 拿掉這兩行改回預設。
   - name: MONTHLY_MAX_USD
-    value: "50"
+    value: "75"
 commonConfigMapName: ""
 secret:
   enabled: true

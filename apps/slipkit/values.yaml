@@ -2,7 +2,7 @@ imagePullSecrets:
   - name: ghcr-pull
 image:
   repository: "ghcr.io/dfgh012316/slipkit"
-  tag: "87da1f8"
+  tag: "13aa434"
 resources:
   limits:
     cpu: 500m

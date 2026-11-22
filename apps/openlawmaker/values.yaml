@@ -19,7 +19,10 @@ resources:
     memory: 64Mi
 environment: "production"
 env:
-  # 獻金與標案區塊：律師看過前不開（不設 SHOW_MONEY）。
+  # 政治獻金區塊（人物頁卡片＋/l/{姓名}/money）：2026-11-23 使用者決定公開、不放得標（openlawmaker #279）。
+  # 需要時拿掉這兩行就整塊關掉（伺服器不查也不回傳）。
+  - name: SHOW_MONEY
+    value: "1"
   # 每天送出發言摘要的估價上限（美元）；每天新發言約 25 段、約 $0.25。
   - name: DAILY_MAX_USD
     value: "1"
